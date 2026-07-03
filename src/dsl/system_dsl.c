@@ -183,7 +183,9 @@ static bool viz_event(DmWidget *w, DmEvent *e) {
 }
 
 static void viz_layout(DmWidget *w) { (void)w; }
-static void viz_destroy(DmWidget *w) { free(w->data); }
+/* No-op: DmVizData is a flat struct (no nested heap allocations), and
+ * dm_widget_destroy already frees w->data. Freeing it here double-frees. */
+static void viz_destroy(DmWidget *w) { (void)w; }
 
 static const DmWidgetVT viz_vt = {
     .type_name = "viz",

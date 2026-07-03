@@ -1164,7 +1164,7 @@ static int l_control(lua_State *L) {
 
 /* dm.viz_add_item(viz_widget, {type=..., ...}) */
 static int l_viz_add_item(lua_State *L) {
-    DmWidget *w = lua_touserdata(L, 1);
+    DmWidget *w = check_widget(L, 1);
     if (!w) return 0;
 
     DmVizItem it = {0};
@@ -1191,7 +1191,7 @@ static int l_viz_add_item(lua_State *L) {
 
 /* dm.control_add_item(control_widget, {type=..., ...}) */
 static int l_control_add_item(lua_State *L) {
-    DmWidget *w = lua_touserdata(L, 1);
+    DmWidget *w = check_widget(L, 1);
     if (!w) return 0;
 
     DmVizItem it = {0};

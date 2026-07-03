@@ -68,7 +68,9 @@ static bool control_event(DmWidget *w, DmEvent *e) {
 }
 
 static void control_layout(DmWidget *w) { (void)w; }
-static void control_destroy(DmWidget *w) { free(w->data); }
+/* No-op: DmControlData is a flat struct (no nested heap allocations), and
+ * dm_widget_destroy already frees w->data. Freeing it here double-frees. */
+static void control_destroy(DmWidget *w) { (void)w; }
 
 static const DmWidgetVT control_vt = {
     .type_name = "control",
