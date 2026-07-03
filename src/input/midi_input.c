@@ -14,6 +14,8 @@
  */
 #include "demod/input.h"
 
+#ifdef __linux__ /* ── real body: ALSA rawmidi (/dev/snd, /proc/asound) ── */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -244,3 +246,22 @@ void dm_midi_out_send(int fd, const unsigned char *bytes, int n) {
 void dm_midi_out_close(int fd) {
     if (fd >= 0) close(fd);
 }
+
+#else /* ── non-Linux stub: no ALSA rawmidi; MIDI arrives via other transports ── */
+
+#include <stddef.h>
+
+DmMidi *dm_midi_open(const char *path) { (void)path; return NULL; }
+const char *dm_midi_path(const DmMidi *m) { (void)m; return ""; }
+int dm_midi_poll(DmMidi *m, unsigned char *status, unsigned char *d1, unsigned char *d2) {
+    (void)m; (void)status; (void)d1; (void)d2; return 0;
+}
+void dm_midi_close(DmMidi *m) { (void)m; }
+int dm_midi_enumerate(DmMidiInfo *out, int max) { (void)out; (void)max; return 0; }
+int dm_midi_out_open(const char *path) { (void)path; return -1; }
+void dm_midi_out_send(int fd, const unsigned char *bytes, int n) {
+    (void)fd; (void)bytes; (void)n;
+}
+void dm_midi_out_close(int fd) { (void)fd; }
+
+#endif /* __linux__ */

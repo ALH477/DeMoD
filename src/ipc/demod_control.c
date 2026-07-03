@@ -14,6 +14,8 @@
  */
 #include "demod/ipc.h"
 
+#ifdef __linux__ /* ── real body: AF_UNIX control socket (orchestrator on device) ── */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -112,3 +114,15 @@ int demod_control_set_gain(float gain) {
     snprintf(j, sizeof(j), "{\"cmd\":\"set_gain\",\"gain\":%.6g}", gain);
     return demod_control_send_raw(j);
 }
+
+#else /* ── non-Linux stub: no local orchestrator; Lua falls back to remote ── */
+
+int demod_control_send_raw(const char *json_line) { (void)json_line; return -1; }
+int demod_control_set_param(int slot, int idx, float value) {
+    (void)slot; (void)idx; (void)value; return -1;
+}
+int demod_control_bypass(int slot, int on) { (void)slot; (void)on; return -1; }
+int demod_control_set_bpm(float bpm)  { (void)bpm;  return -1; }
+int demod_control_set_gain(float gain) { (void)gain; return -1; }
+
+#endif /* __linux__ */

@@ -10,6 +10,8 @@
  */
 #include "demod/demod_rt_meters.h"
 
+#ifdef __linux__ /* ── real body: /dev/shm/demod-rt-meters mmap (live readback) ── */
+
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
@@ -58,3 +60,10 @@ void demod_rt_meters_close(void) {
     if (g_m)  { munmap(g_m, sizeof(DemodRtMeters)); g_m = NULL; }
     if (g_fd >= 0) { close(g_fd); g_fd = -1; }
 }
+
+#else /* ── non-Linux stub: no live readback shm; report unavailable ── */
+
+int  demod_rt_meters_read(DemodRtMeters *out) { (void)out; return 0; }
+void demod_rt_meters_close(void) {}
+
+#endif /* __linux__ */

@@ -26,6 +26,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+
+/* termios/serial device I/O is POSIX-only (works on Linux + macOS). The token
+ * parser below (dm_nav_from_name/dm_nav_name) is pure and stays portable — it
+ * is the funnel every input source (Lua, MIDI, network, touch) reaches, so it
+ * must be available on Windows too. */
+#ifndef _WIN32
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
@@ -53,6 +60,8 @@ static speed_t baud_to_speed(int baud) {
         default:     return B115200;
     }
 }
+
+#endif /* !_WIN32 */
 
 /* ── Token → action (shared with dm_nav_from_name) ─────────────────────── */
 
@@ -90,6 +99,8 @@ DmNavAction dm_nav_from_name(const char *t) {
     for (int i = 0; tabp_w[i]; i++) if (ieq(t, tabp_w[i])) return DM_NAV_TAB_PREV;
     return DM_NAV_NONE;
 }
+
+#ifndef _WIN32 /* ── serial device lifecycle (POSIX termios) ── */
 
 static void enc_push(DmEncoder *enc, DmNavAction a) {
     if (a == DM_NAV_NONE) return;
@@ -186,6 +197,16 @@ void dm_encoder_close(DmEncoder *enc) {
     if (enc->fd >= 0) close(enc->fd);
     free(enc);
 }
+
+#else /* ── Windows: no termios/serial; encoder input arrives via other paths ── */
+
+DmEncoder  *dm_encoder_open(const char *path, int baud) {
+    (void)path; (void)baud; return NULL;
+}
+DmNavAction dm_encoder_poll(DmEncoder *enc) { (void)enc; return DM_NAV_NONE; }
+void        dm_encoder_close(DmEncoder *enc) { (void)enc; }
+
+#endif /* !_WIN32 */
 
 const char *dm_nav_name(DmNavAction a) {
     switch (a) {

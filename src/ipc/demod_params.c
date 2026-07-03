@@ -14,6 +14,8 @@
  */
 #include "demod/ipc.h"
 
+#ifdef __linux__ /* ── real body: /dev/shm/demod-params mmap (device param bus) ── */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -72,3 +74,10 @@ void demod_params_close(void) {
     if (g_fd >= 0) { close(g_fd); g_fd = -1; }
     g_tried = 0;
 }
+
+#else /* ── non-Linux stub: no shm param bus; report unavailable ── */
+
+int  demod_params_read(DemodParamSnapshot *out) { (void)out; return 0; }
+void demod_params_close(void) {}
+
+#endif /* __linux__ */

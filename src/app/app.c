@@ -9,17 +9,14 @@
 #include "demod/input.h"
 #include "demod/gamepad.h"
 #include "demod/ipc.h"
+#include "../platform/compat.h" /* dm_now_ms — portable monotonic clock */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-/* Monotonic milliseconds, for the DEMOD_PERF frame-time probe. */
-static double dm_now_ms(void) {
-    struct timespec t;
-    clock_gettime(CLOCK_MONOTONIC, &t);
-    return (double)t.tv_sec * 1000.0 + (double)t.tv_nsec / 1.0e6;
-}
+/* Monotonic milliseconds (for the DEMOD_PERF frame-time probe) now comes from
+ * platform/compat.h so the same code builds on Linux/macOS/Windows. */
 
 /* ── Logical render resolution ─────────────────────────────────────────
  * Above the cap the software framebuffer renders at a reduced (aspect-
