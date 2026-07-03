@@ -1,0 +1,22 @@
+# build artifacts
+*.o
+/demod-ui
+examples/demod-ui
+*.so
+*.a
+result
+result-*
+
+# generated font blobs (built by `make font`; see tools/genfont.py)
+*.dmf
+
+# test binaries
+/tests/test_font_utf8
+
+# audio-stack build trees
+build*/
+**/dist-newstyle/
+**/.zig-cache/
+
+# out-of-tree Steamworks SDK drop-in
+steam-sdk/

@@ -1,0 +1,138 @@
+cabal-version:   3.0
+name:            demod-orchestrator
+version:         0.3.0.0
+synopsis:        DeMoD RT Audio Orchestrator with multi-process supervision
+description:
+  Unified orchestrator for the DeMoD ecosystem. Manages a tree of supervised
+  child processes (RT audio, UI, lyrics, HydraMesh), runs the Ulation Engine
+  for pitch detection, routes parameters through an OSC Router to the triple
+  buffer, and communicates with the RT audio callback via lock-free IPC.
+
+license:         GPL-3.0-only
+license-file:    LICENSE
+author:          ALH477
+maintainer:      ALH477
+copyright:       (c) 2025-2026 DeMoD LLC
+category:        Audio, System
+build-type:      Simple
+
+flag bt-midi
+    description: Build with BLE-MIDI publisher (links libdemod_bt).
+                 Disable on architectures where demod-bt is not yet
+                 packaged (e.g. riscv64) to keep the cross build
+                 self-contained.
+    default:     True
+    manual:      True
+
+flag synth
+    description: Build with detected-pitch Faust instrument note tracking.
+    default:     True
+    manual:      True
+
+common warnings
+    ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates
+                 -Wincomplete-uni-patterns -Wmissing-home-modules
+                 -Wpartial-fields -Wredundant-constraints
+
+common ffi
+    c-sources:        cbits/demod_ffi_helpers.c
+                    , cbits/demod_marketplace_shm.c
+    include-dirs:     cbits
+    install-includes: demod_ffi_helpers.h
+                      demod_marketplace_shm.h
+                      demod_shm.h
+                      demod_spsc.h
+                      demod_triple_buf.h
+    cc-options:       -std=c17 -Wall -Wextra -D_GNU_SOURCE
+    extra-libraries:  rt pthread
+
+    if flag(bt-midi)
+        c-sources:        cbits/demod_bt_ffi.c
+        install-includes: demod_bt_ffi.h
+        -- libdemod_bt provides the BLE-MIDI peripheral symbols
+        -- (demod_bt_midi_{start,send,stop}). The Nix derivation
+        -- injects demod-bt via callCabal2nix's `demod_bt` arg.
+        extra-libraries:  demod_bt
+        cpp-options:      -DDEMOD_BT_MIDI=1
+
+executable demod-orchestrator
+    import:           warnings, ffi
+    main-is:          Main.hs
+    other-modules:    DeMoD.Orchestrator
+                    , DeMoD.CLI
+                    , DeMoD.Control
+                    , DeMoD.IPC.FFI
+                    , DeMoD.Marketplace
+                    , DeMoD.Ulation.YIN
+                    , DeMoD.Ulation.Engine
+                    , DeMoD.Supervisor
+                    , DeMoD.OSCRouter
+                    , DeMoD.ProcessTree
+                    , DeMoD.Note.Pitch
+                    , DeMoD.Note.Types
+                    , DeMoD.Note.Tracker
+
+    if flag(bt-midi)
+        other-modules:    DeMoD.BT.FFI
+                        , DeMoD.BT.Bridge
+
+    hs-source-dirs:   src
+    default-language: GHC2021
+
+    ghc-options:      -threaded -rtsopts -O2
+                      "-with-rtsopts=-N2 -qg -qb -qm -I0 -A512k -C0 -V0"
+
+    build-depends:    base >= 4.18 && < 5
+                    , unix >= 2.8
+                    , async >= 2.2
+                    , stm >= 2.5
+                    , aeson >= 2.1
+                    , bytestring >= 0.11
+                    , directory >= 1.3
+                    , filepath >= 1.4
+                    , network >= 3.1
+                    , process >= 1.6
+                    , scientific >= 0.3
+                    , text >= 2.0
+                    , time >= 1.12
+                    , vector >= 0.13
+                    , containers >= 0.6
+
+test-suite orchestrator-test
+    import:           warnings, ffi
+    type:             exitcode-stdio-1.0
+    main-is:          Main.hs
+    other-modules:    DeMoD.IPC.FFI
+                    , DeMoD.CLI
+                    , DeMoD.Control
+                    , DeMoD.Marketplace
+                    , DeMoD.Orchestrator
+                    , DeMoD.OSCRouter
+                    , DeMoD.ProcessTree
+                    , DeMoD.Supervisor
+                    , DeMoD.Note.Pitch
+                    , DeMoD.Note.Types
+                    , DeMoD.Note.Tracker
+                    , DeMoD.Ulation.YIN
+                    , DeMoD.Ulation.Engine
+    hs-source-dirs:   test
+                    , src
+    default-language: GHC2021
+
+    ghc-options:      -threaded -rtsopts -O2
+
+    build-depends:    base
+                    , aeson >= 2.1
+                    , stm
+                    , unix
+                    , async
+                    , bytestring >= 0.11
+                    , containers >= 0.6
+                    , directory >= 1.3
+                    , filepath >= 1.4
+                    , network >= 3.1
+                    , process >= 1.6
+                    , scientific >= 0.3
+                    , text >= 2.0
+                    , time >= 1.12
+                    , vector >= 0.13
