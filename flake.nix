@@ -75,10 +75,46 @@
               "demod-orchestrator" ./audio-stack/orchestrator { demod_bt = null; };
           in pkgs.haskell.lib.compose.appendConfigureFlags [ "--flag=-bt-midi" ] base;
 
+        # ── DCF (HydraMesh/UDP) remote transport ─────────────────────
+        # Optional: run the engine on another box, driven over UDP. Uses the
+        # vendored HydraMesh codec headers (LGPL-3.0, third_party/hydramesh).
+        # demod-ui-dcf: the framework with the dm.dcf binding (DCF=1). The
+        # dm.dcf/bridge sources are LGPL-3.0; the default demod-ui stays MPL.
+        demod-ui-dcf = demod-ui.overrideAttrs (old: {
+          pname = "demod-ui-dcf";
+          buildPhase = ''
+            make DCF=1 CC=${pkgs.stdenv.cc}/bin/cc
+          '';
+          meta = old.meta // {
+            description = "DeMoD UI with the dm.dcf remote transport binding";
+            license = pkgs.lib.licenses.lgpl3Only;
+          };
+        });
+
+        # demod-remote-bridge: engine-side DCF <-> local-IPC relay (standalone).
+        demod-remote-bridge = pkgs.stdenv.mkDerivation {
+          pname = "demod-remote-bridge";
+          version = "0.1.0";
+          src = ./.;
+          buildPhase = ''
+            make -C audio-stack/bridge CC=${pkgs.stdenv.cc}/bin/cc
+          '';
+          installPhase = ''
+            mkdir -p $out/bin
+            cp audio-stack/bridge/demod-remote-bridge $out/bin/
+          '';
+          meta = {
+            description = "DeMoD remote-engine bridge (DCF/UDP <-> local control socket + meters shm)";
+            license = pkgs.lib.licenses.lgpl3Only;
+            platforms = pkgs.lib.platforms.linux;
+            mainProgram = "demod-remote-bridge";
+          };
+        };
+
       in {
         packages = {
           default = demod-ui;
-          inherit demod-ui demod-rt demod-orchestrator;
+          inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf demod-remote-bridge;
 
           # Portable single-file build of the framework (bundles the nix closure).
           appimage = nix-appimage.lib.${system}.mkAppImage {

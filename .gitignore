@@ -20,3 +20,9 @@ build*/
 
 # out-of-tree Steamworks SDK drop-in
 steam-sdk/
+
+# DCF bridge build artifacts
+audio-stack/bridge/demod-remote-bridge
+audio-stack/bridge/test/stub_engine
+audio-stack/bridge/test/*.log
+audio-stack/bridge/test/*.sock

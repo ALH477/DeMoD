@@ -11,6 +11,7 @@ are MPL-2.0-compatible:
 | monocypher (vendored in `src/crypto/`) | CC0-1.0 / BSD-2-Clause (public-domain-equivalent) — see `src/crypto/MONOCYPHER-LICENCE.md` |
 | StreamDB (vendored in `src/db/`; DeMoD-authored, separate upstream project) | LGPL-2.1-or-later (see the headers in `src/db/streamdb.{c,h}`) |
 | GNU Unifont glyph data (**not in this repo**; `tools/genfont.py` builds runtime `.dmf` glyph blobs from Unifont `.hex` releases) | SIL OFL-1.1 (Unifont is dual OFL-1.1 / GPL-2.0-or-later with font-embedding exception; used here under **OFL-1.1**) |
+| HydraMesh DCF codec headers (vendored header-only in `third_party/hydramesh/`; used by the opt-in `DCF=1` transport) | LGPL-3.0-only — from github.com/ALH477/HydraMesh, pinned commit in that dir's `README.md` |
 | Steamworks SDK (`libsteam_api.so`) — **Steam edition build only** (`make STEAM=1`) | Valve SDK Access Agreement (proprietary; **not in this repo**, referenced out-of-tree via `$DEMOD_STEAM_SDK`) |
 
 monocypher is unmodified and keeps its own (CC0/BSD-2) terms — it is **not** relicensed

@@ -40,17 +40,33 @@ shared-memory struct layout is intentionally duplicated: `include/demod/demod_rt
 are byte-identical in layout but each carries its own license; they are deliberately not
 deduplicated, to keep the boundary clean.
 
+## DCF remote transport (optional, LGPL-3.0)
+
+The optional DCF (HydraMesh/UDP) transport — which lets the engine run on another
+machine and talk to the UI over UDP — is **LGPL-3.0-only**, matching the HydraMesh
+codec headers it links:
+
+- `src/ipc/dm_dcf.c` — the `dm.dcf` framework binding, compiled **only** with `make DCF=1`
+  (`#ifdef DEMOD_DCF`). The default `demod-ui` build does not include it and stays MPL-2.0.
+- `audio-stack/bridge/**` — `demod-remote-bridge`, a standalone engine-side relay (separate binary).
+- `third_party/hydramesh/*.h` — vendored header-only DCF codecs (LGPL-3.0, see that dir's README).
+
+LGPL-3.0 links cleanly into both the MPL framework (file-level) and the GPLv3 engine
+(LGPL-3.0 is GPL-3.0-compatible). Flake outputs: `demod-ui-dcf`, `demod-remote-bridge`.
+
 ## Third-party / vendored components
 
 See `THIRD_PARTY_LICENSES.md`. Notably: SDL2 (zlib), Lua (MIT), monocypher (CC0/BSD-2),
-StreamDB (LGPL-2.1-or-later), and GNU Unifont glyph data (OFL-1.1, fetched by `make font`,
-not committed). The DeMoD/TERMINUS marks and trade dress are reserved — see `TRADEMARK.md`.
+StreamDB (LGPL-2.1-or-later), GNU Unifont glyph data (OFL-1.1, fetched by `make font`,
+not committed), and the HydraMesh DCF codec headers (LGPL-3.0, vendored in
+`third_party/hydramesh/`). The DeMoD/TERMINUS marks and trade dress are reserved — see `TRADEMARK.md`.
 
 ## SPDX summary
 
 | Path | SPDX |
 |------|------|
 | root framework (`src/`, `include/`, `examples/`, `tools/`, `tests/`, Lua) | `MPL-2.0` |
-| `audio-stack/**` | `GPL-3.0-only` (or commercial) |
+| `audio-stack/**` (engine + orchestrator) | `GPL-3.0-only` (or commercial) |
+| `src/ipc/dm_dcf.c`, `audio-stack/bridge/**`, `third_party/hydramesh/**` (DCF, opt-in) | `LGPL-3.0-only` |
 | `src/crypto/monocypher*` | `CC0-1.0 OR BSD-2-Clause` |
 | `src/db/streamdb.*` | `LGPL-2.1-or-later` |

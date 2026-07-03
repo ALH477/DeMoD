@@ -45,6 +45,9 @@
 #include "demod/ipc.h"
 #include "monocypher-ed25519.h"   /* vendored: RFC-8032 Ed25519 verify + SHA-512 (src/crypto) */
 #include "streamdb.h"             /* vendored: embedded reverse-trie KV store (src/db) */
+#ifdef DEMOD_DCF
+void dm_dcf_register(lua_State *L);   /* src/ipc/dm_dcf.c — dm.dcf UDP transport */
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1488,6 +1491,12 @@ void dm_lua_register(DmApp *app) {
      * steam.lua no-ops on every non-Steam build / the device. */
     luaL_newlib(L, steam_funcs);
     lua_setfield(L, -2, "steam");
+#endif
+
+#ifdef DEMOD_DCF
+    /* dm.dcf sub-table (DCF/HydraMesh UDP remote transport; DCF=1). Absent on
+     * the default build so the DSP backends use the local socket path. */
+    dm_dcf_register(L);
 #endif
 
     /* dm.color constants */

@@ -78,6 +78,16 @@ ifeq ($(STEAM),1)
   LINK = $(CXX)
 endif
 
+# ── Optional: DCF (HydraMesh/UDP) remote transport, enabled with DCF=1 ──
+# Adds the dm.dcf Lua binding (src/ipc/dm_dcf.c) — a UDP client that drives a
+# remote engine over the DeMoD 17-byte frame codec (vendored, header-only, in
+# third_party/hydramesh). Links libc only. The default build is byte-unchanged
+# (dm.dcf is then absent and the DSP backends use the local socket path).
+ifeq ($(DCF),1)
+  CFLAGS += -DDEMOD_DCF -Ithird_party
+  OBJS += src/ipc/dm_dcf.o
+endif
+
 # ── Targets ──────────────────────────────────────────────────────────
 
 .PHONY: all clean run run-dsp run-studio run-viz run-launcher test font font-subset
