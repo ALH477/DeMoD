@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+title: "DeMoD — real-time audio platform (GUI framework + RT engine)"
+message: "If you use this software, please cite it."
+type: software
+authors:
+  - name: "DeMoD LLC"
+repository-code: "https://github.com/ALH477/DeMoD"
+license: MPL-2.0

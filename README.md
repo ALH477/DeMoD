@@ -1,18 +1,21 @@
-# DeMoD UI
+# DeMoD
 
-> A pure software-rendered GUI framework in C11 and Lua. No GPU. No web view. Every pixel drawn by hand.
+> A real-time audio platform: a hand-drawn C11/Lua GUI framework **+** a deterministic RT audio engine, splittable over UDP — from a 320px panel to a RISC-V board. No GPU. Every pixel drawn by hand.
 
-![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-00F5D4.svg)
-![C11](https://img.shields.io/badge/C-11-8B5CF6.svg)
-![Lua 5.4](https://img.shields.io/badge/Lua-5.4-FFD94C.svg)
+[![CI](https://github.com/ALH477/DeMoD/actions/workflows/ci.yml/badge.svg)](https://github.com/ALH477/DeMoD/actions/workflows/ci.yml)
+![License: MPL-2.0](https://img.shields.io/badge/framework-MPL--2.0-00F5D4.svg)
+![engine: GPLv3](https://img.shields.io/badge/engine-GPLv3%20%7C%20commercial-8B5CF6.svg)
+![C11](https://img.shields.io/badge/C-11-FFD94C.svg)
+![Lua 5.4](https://img.shields.io/badge/Lua-5.4-4CFF82.svg)
 ![GPU](https://img.shields.io/badge/GPU-none-FF4C6A.svg)
-![deps](https://img.shields.io/badge/deps-SDL2%20only-4CFF82.svg)
 
-DeMoD UI paints its own pixels. There is no OpenGL, no Vulkan, no shader, no browser engine hiding in the basement. The framebuffer is a flat `uint32_t*` of ARGB8888, and every rectangle, every glyph, every glowing scope trace gets rasterized one scanline at a time in plain C. SDL2 shows up for exactly three jobs: open a window, read input, blit the finished buffer. That is the whole contract with the outside world.
+![DeMoD UI — DSP Studio](assets/dsp_studio.png)
 
-You script the interface in Lua. The same script runs on a 320 pixel panel wired inside a guitar and on a 1080p desktop, because this thing was built to survive on hardware that has no business running a GUI.
+DeMoD paints its own pixels. There is no OpenGL, no Vulkan, no shader, no browser engine hiding in the basement. The framebuffer is a flat `uint32_t*` of ARGB8888, and every rectangle, every glyph, every glowing scope trace gets rasterized one scanline at a time in plain C. SDL2 shows up for exactly three jobs: open a window, read input, blit the finished buffer. That is the whole contract with the outside world.
 
-This is the open foundation. It is the renderer and the widget layer underneath DeMoD's instruments, carved out and licensed so you can build your own thing on it.
+You script the interface in Lua. The same script runs on a 320-pixel panel wired inside an instrument and on a 1080p desktop, because this thing was built to survive on hardware that has no business running a GUI. Underneath, an optional real-time audio stack (a C JACK engine + a Haskell orchestrator) can run on the same box or on another one across a mesh — see [Ecosystem](#ecosystem).
+
+**Two layers, two licenses:** the GUI **framework** (this repo's root) is **MPL-2.0** — build anything on it, open or closed. The **audio stack** (`audio-stack/`) is **GPLv3-or-commercial**. They are separate programs (socket/shm IPC), so taking only the framework never touches the GPL. Full breakdown in [`LICENSING.md`](LICENSING.md).
 
 ## Why this exists
 
@@ -151,6 +154,13 @@ dm.color.yellow      -- {0xFF, 0xD9, 0x4C}
 
 The framebuffer is a `uint32_t*` ARGB8888 buffer. Drawing is scanline math in C. Text is a fixed 8x16 bitmap font; ASCII 32 to 126 is compiled in, and all other Unicode is handled by an optional glyph blob (see *International text* below). There is no clip region and no rounded-rect in hardware, so effects like glow and frosted glass are stacked low-alpha primitives. The constraints are the aesthetic.
 
+Everything below is one software renderer, no GPU:
+
+| | |
+|---|---|
+| ![widgets](assets/dsp_panel.png) *every built-in widget* | ![viz](assets/systems_viz.png) *`dm.viz` node-graph DSL* |
+| ![international text](assets/i18n_demo.png) *UTF-8 / CJK, from one bitmap pipeline* | ![encoder cards](assets/card_launcher.png) *`dm.control` encoder-native list* |
+
 ## International text (UTF-8 / CJK)
 
 Strings are UTF-8 everywhere. ASCII renders from the compiled-in 8x16 face with no
@@ -190,6 +200,21 @@ over UDP via [HydraMesh](https://github.com/ALH477/HydraMesh)'s DCF protocol. Th
 
 These + the vendored codecs (`third_party/hydramesh/`) are **LGPL-3.0**. A headless
 end-to-end proof is `audio-stack/bridge/test/loopback.sh` (drives `examples/dcf_loopback.lua`).
+
+## Ecosystem
+
+This repo is the framework + audio core. It's the foundation for a wider open stack:
+
+- **[ArchibaldOS](https://github.com/ALH477/ArchibaldOS)** — a real-time-audio NixOS distribution
+  that this runs on. Ships for **x86_64**, **aarch64**, and — unusually — **RISC-V**: a mainline
+  PREEMPT_RT image for the StarFive JH7110 (VisionFive 2 / DeepComputing Framework 13 RV). If you
+  want deterministic audio on RISC-V, that's the front door (see its `docs/riscv.md`).
+- **[HydraMesh](https://github.com/ALH477/HydraMesh)** — the DCF protocol behind the remote
+  transport above: a certified 17-byte wire quantum with multi-language SDKs.
+
+The framework itself has no dependency on any of these — it's a standalone GUI toolkit. They're
+listed so you can see where it fits: a no-GPU renderer that scales from a microcontroller-class
+panel to a networked, RISC-V, real-time-audio rig, all from the same Lua scripts.
 
 ## Examples
 

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# One in-flight run per ref; newer pushes cancel older ones.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: build + test + DCF loopback
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build the framework
+        run: nix build .#default -L
+
+      - name: UTF-8 / font tests
+        run: nix develop --command make test
+
+      - name: DCF remote-transport loopback (bridge <-> dm.dcf over UDP)
+        run: nix develop --command bash audio-stack/bridge/test/loopback.sh
+
+      - name: Headless smoke — every example renders and exits clean
+        run: |
+          nix develop --command bash -eu -c '
+            make >/dev/null
+            for e in hello dsp_panel dsp_studio systems_viz card_launcher; do
+              SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+                DEMOD_SHOT=/tmp/$e.ppm DEMOD_SHOT_FRAME=60 \
+                timeout 20 ./demod-ui examples/$e.lua
+              echo "  $e: ok"
+            done
+          '
