@@ -1,0 +1,162 @@
+DEMOD DUAL LICENSE
+==================
+
+Copyright (C) 2025-2026 DeMoD LLC
+
+DeMoD is dual-licensed to support both open-source development and commercial use:
+
+OPTION 1: GNU General Public License v3 (GPLv3)
+===============================================
+
+DeMoD is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, version 3 of the License only.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+Use this license for:
+  - Open-source projects
+  - Personal projects
+  - Educational use
+  - Non-commercial hardware
+  - Development and testing
+
+When you distribute DeMoD under GPLv3, you must:
+  - Provide or offer source code to recipients
+  - Include a copy of this license
+  - Document any modifications
+  - Preserve copyright notices
+
+OPTION 2: Commercial License
+=============================
+
+If you wish to use DeMoD in a commercial product (software plugins or
+physical hardware) without the GPLv3 source disclosure requirements:
+
+Purchase a Commercial License for $249 (one-time, perpetual per developer):
+  - Unlimited commercial plugins (100% of software revenue is yours)
+  - Unlimited physical hardware devices with modest revenue share:
+    * 3% of hardware device sales revenue to DeMoD
+    * 100% of software plugin revenue to you
+  - No splash screens, telemetry, or monthly fees
+  - Perpetual use (even if you cease subscription/updates)
+
+Downloads & Purchase: https://demod.dev/license
+
+When you distribute DeMoD under the Commercial License, you may:
+  - Keep source code proprietary
+  - Distribute compiled binaries without source disclosure
+  - Distribute plugins and hardware without GPL compliance requirements
+  - If selling hardware, report sales via the DeMoD revenue tracking system
+
+SPECIAL TERMS: FAUST DSP SOURCES
+================================
+
+All .dsp source files in dsp/effects/ and dsp/lib/demod_skill.lib are subject
+to separate copyright and licensing terms:
+
+  - Your authored .dsp files retain YOUR original copyright
+  - Faust itself is licensed under GPLv2+ (see FAUST-LICENSE if included)
+  - The compiled output (.so libraries, plugin binaries) from your .dsp sources
+    is governed by whichever DeMoD license you have (GPLv3 or Commercial)
+  - You may use any compatible license for your original .dsp source code
+
+Example:
+  - You author "mycustom_reverb.dsp" → YOUR copyright on the source
+  - You compile to "mycustom_reverb.so" → Governed by DeMoD's license (GPLv3 or Commercial)
+  - If you choose Commercial License, your .dsp source remains proprietary
+  - If you choose GPLv3, your .dsp source and compiled .so must comply with GPLv3
+
+DEPENDENCY LICENSES
+===================
+
+DeMoD includes or depends on the following open-source components:
+
+Included in repository (plugin/vendor/):
+  - CPLUG (Unlicense - public domain)
+  - PUGL (ISC License)
+  - CLAP C API (MIT License)
+  - VST3 C API (Dual: GPLv3 / Proprietary Steinberg License)
+
+External dependencies (installed separately):
+  - JACK2 (GPLv2+)
+  - Faust (GPLv2+)
+  - GHC / Haskell libraries (various open-source licenses)
+  - Cairo (LGPL)
+  - Lua 5.4 (MIT)
+
+When you distribute DeMoD under the Commercial License, you must verify
+compliance with these dependency licenses. Most are permissive; some (VST3)
+may require separate licensing from Steinberg for commercial plugin distribution.
+
+HARDWARE LICENSING: CRYPTOGRAPHIC VERIFICATION
+================================================
+
+If shipping physical hardware (guitar pedals, interfaces, effects, etc.) under
+the Commercial License, DeMoD uses a simple, privacy-friendly SHA256-based
+verification system to track revenue share — no per-device activation, no
+telemetry, no runtime checks.
+
+How it works:
+  1. You receive a secret 256-bit hardware license key with your Commercial License
+  2. You embed this key in your build process (Zig snippet provided)
+  3. The build outputs a SHA256 hash of (firmware + key)
+  4. You ship hardware with this hash (in metadata or firmware version screen)
+  5. Each quarter, you report: product name, hash, units sold, revenue
+  6. DeMoD verifies the hash matches your licensed key; calculates 3% share
+
+Your privacy:
+  - DeMoD never sees your actual firmware binary
+  - Your license key stays on your machine only
+  - No telemetry in shipped firmware
+  - Batch reporting only (no per-device tracking)
+  - GDPR/CCPA compliant
+
+Implementation:
+  - Read full specification: HARDWARE_LICENSING.md in this repository
+  - Build helper (Zig): scripts/demod_hw_license.zig (copy into your build.zig)
+  - Verification tool (Python): scripts/verify_hardware_revenue.py (reference implementation)
+
+Example revenue calculation:
+  - You ship 87 guitar pedal units
+  - Total revenue from sales: $105,000
+  - DeMoD 3% share: $3,150
+  - You receive invoice; pay via Stripe/ACH
+  - Detailed audit trail available in your DeMoD account
+
+Non-compliance:
+  - If you report false revenue, or use an unverified firmware hash,
+    the full reported revenue is owed to DeMoD (not just 3%)
+  - Disputes are resolved via audit (we request firmware binary for verification)
+  - See HARDWARE_LICENSING.md for dispute resolution process
+
+GPLv3 hardware:
+  - If you distribute under GPLv3, no revenue share applies
+  - Hardware source must be published under GPLv3
+  - No secret key required
+
+CHOOSING YOUR LICENSE
+=====================
+
+1. GPLv3 (Free): Use if you're comfortable with source disclosure
+2. Commercial ($249): Use if you want proprietary distributions or hardware sales
+
+If unsure, contact licensing@demod.dev for clarification.
+
+---
+
+Full GPLv3 Text
+===============
+
+The complete GNU General Public License v3 is available at:
+<https://www.gnu.org/licenses/gpl-3.0.en.html>
+
+---
+
+Last Updated: April 2026
