@@ -2,7 +2,6 @@
 
 > A real-time audio platform: a hand-drawn C11/Lua GUI framework **+** a deterministic RT audio engine, splittable over UDP — from a 320px panel to a RISC-V board. No GPU. Every pixel drawn by hand.
 
-[![CI](https://github.com/ALH477/DeMoD/actions/workflows/ci.yml/badge.svg)](https://github.com/ALH477/DeMoD/actions/workflows/ci.yml)
 ![License: MPL-2.0](https://img.shields.io/badge/framework-MPL--2.0-00F5D4.svg)
 ![engine: GPLv3](https://img.shields.io/badge/engine-GPLv3%20%7C%20commercial-8B5CF6.svg)
 ![C11](https://img.shields.io/badge/C-11-FFD94C.svg)
