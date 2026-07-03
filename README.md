@@ -176,6 +176,21 @@ supervisor). They are **separate programs** — the framework does not depend on
 they run headless without any UI. They are **GPLv3-only OR commercial**, a different
 license from the MPL framework; see `audio-stack/README.md` and `LICENSING.md`.
 
+## Remote engine over UDP (DCF / HydraMesh, optional)
+
+By default the UI and engine share a machine (local socket + `/dev/shm`). They can also be
+**split across a network** — engine on a VM or a wired offloader, UI on your workstation —
+over UDP via [HydraMesh](https://github.com/ALH477/HydraMesh)'s DCF protocol. The engine is
+**unmodified**; two small pieces carry it:
+
+- `dm.dcf` — a UDP client binding in the framework, built with **`make DCF=1`** (opt-in; the
+  default build is unchanged and stays MPL). Flake output `demod-ui-dcf`.
+- `demod-remote-bridge` (`audio-stack/bridge/`) — an engine-side relay: DCF control ops →
+  the local control socket, and the meters shm → DCF telemetry. Flake output `demod-remote-bridge`.
+
+These + the vendored codecs (`third_party/hydramesh/`) are **LGPL-3.0**. A headless
+end-to-end proof is `audio-stack/bridge/test/loopback.sh` (drives `examples/dcf_loopback.lua`).
+
 ## Examples
 
 ```bash
