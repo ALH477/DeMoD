@@ -200,6 +200,12 @@ over UDP via [HydraMesh](https://github.com/ALH477/HydraMesh)'s DCF protocol. Th
 These + the vendored codecs (`third_party/hydramesh/`) are **LGPL-3.0**. A headless
 end-to-end proof is `audio-stack/bridge/test/loopback.sh` (drives `examples/dcf_loopback.lua`).
 
+Because the UI is portable C + SDL2 + Lua and only the transport is needed to reach the engine,
+you can run the **UI natively on macOS or Windows** and keep the (Linux-only) engine on a VM or
+server — a native window on your desktop, real-time audio on the Linux side. Build the client
+with CMake (`cmake -S . -B build -DDEMOD_DCF=ON`); full setup in
+[`docs/remote-client.md`](docs/remote-client.md).
+
 ## Ecosystem
 
 This repo is the framework + audio core. It's the foundation for a wider open stack:

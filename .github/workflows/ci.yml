@@ -41,3 +41,36 @@ jobs:
               echo "  $e: ok"
             done
           '
+
+  # ── Cross-platform client (native UI over DCF/UDP) — CMake build ──────
+  # Proves the macOS / Windows remote-client build (core + dm.dcf, local IPC
+  # gated out). Engine stays Linux-only. See docs/remote-client.md.
+  client-macos:
+    name: client build (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL2 + Lua
+        run: brew install sdl2 lua pkg-config
+      - name: Configure + build (DEMOD_CLIENT)
+        run: |
+          cmake -S . -B build -DDEMOD_DCF=ON
+          cmake --build build -j
+      - name: Headless smoke
+        run: |
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            DEMOD_SHOT=/tmp/mac.ppm DEMOD_SHOT_FRAME=30 \
+            ./build/demod-ui examples/hello.lua
+
+  client-windows:
+    name: client build (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL2 + Lua (vcpkg)
+        run: vcpkg install sdl2 lua
+      - name: Configure + build (DEMOD_CLIENT)
+        run: |
+          cmake -S . -B build -DDEMOD_DCF=ON `
+            -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake
+          cmake --build build --config Release
