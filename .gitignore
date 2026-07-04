@@ -34,3 +34,7 @@ web/demod-ui.data
 
 # feature-flag build guard stamp
 .build-tag
+
+# clangd compile database + cache
+compile_commands.json
+.cache/

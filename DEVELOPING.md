@@ -10,8 +10,12 @@ before you push.
 ./dev shot dsp_studio 60    # headless render -> a PNG (no display needed)
 ./dev test loopback         # one test (font|loopback|ws_loopback|engine_e2e|obd2|smoke|all)
 ./dev build [dcf]           # build ./demod-ui (dcf = with the dm.dcf transport)
-./dev fmt | lint            # stylua + clang-format (advisory)
+./dev fmt | lint [--all]    # stylua + clang-format (advisory; default = your changed files)
+./dev doctor                # toolchain / tools / versions at a glance
+./dev watch <target>        # rebuild + re-run on change   ·   ./dev compiledb (clangd)
 ```
+
+`nix run .#dev -- <cmd>` and `nix run .#check` run the CLI without a checkout dir.
 
 `./dev` has **zero dependencies** and **auto-enters `nix develop`** when the C toolchain isn't on your
 PATH — so a fresh `git clone` + `./dev check` works if you have Nix. Without Nix, install SDL2 + Lua 5.4
@@ -52,10 +56,24 @@ There's no single "test suite" file — tests are focused scripts, all run by `.
 (mock ELM327 → OBD reader), and a headless render smoke over the examples. `./dev check` mirrors
 `.github/workflows/ci.yml` exactly, plus obd2. *(A `busted` Lua unit layer is a noted future gap.)*
 
+## Editor / LSP
+
+Out-of-the-box completion + diagnostics:
+- **Lua** — `.luarc.json` + `meta/dm.lua` teach [lua-language-server](https://luals.github.io) the
+  `dm` API and the framework's global callbacks (`on_nav`/`on_update`/`on_draw`…), so editing shells /
+  examples gets completion and stops flagging `dm` as undefined. `lua-language-server` is in the dev shell.
+- **C** — `.clangd` + `./dev compiledb` (writes `compile_commands.json` via `bear`) give clangd the real
+  SDL2/Lua flags. `clang-format`/`clangd` come from `clang-tools` in the dev shell.
+
+`./dev` gets `bash` tab-completion (subcommands + targets) in `nix develop`, and `./dev doctor` shows
+your toolchain at a glance.
+
 ## Formatting
 
-Advisory: `stylua.toml` (Lua) + `.clang-format` (C) + `.editorconfig`. `./dev fmt` applies them; `./dev
-lint` checks. Neither gates `./dev check` or CI — format when you like; `./dev fmt` before a PR is nice.
+Advisory: `stylua.toml` (Lua) + `.clang-format` (C) + `.editorconfig`. `./dev fmt` applies them to your
+**changed** files (`--all` for the whole tree); `./dev lint` checks. Neither gates `./dev check` or CI —
+format when you like; `./dev fmt` before a PR is nice. (The tree isn't pre-formatted, so a first
+whole-tree `./dev fmt --all` would be a large diff — keep it scoped to what you touch.)
 
 ## Layout & licenses
 

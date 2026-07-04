@@ -202,6 +202,13 @@
             exec ${pkgs.bash}/bin/bash "''${DEMOD_REPO:-$PWD}/dev" check
           '');
         };
+        # `nix run .#dev -- <cmd>` — the dev CLI without cloning-then-cd.
+        apps.dev = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-dev" ''
+            exec ${pkgs.bash}/bin/bash "''${DEMOD_REPO:-$PWD}/dev" "$@"
+          '');
+        };
 
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
@@ -212,8 +219,9 @@
             ghc cabal-install
             # fonts (make font)
             python3 curl gzip
-            # dev CLI: ./dev fmt|lint (advisory)
-            stylua clang-tools
+            # dev CLI: fmt/lint (stylua+clang-tools), compiledb (bear), watch (entr),
+            # LSP (lua-language-server + clangd from clang-tools), completion (bash-completion)
+            stylua clang-tools lua-language-server bear entr bash-completion
           ];
 
           shellHook = ''
@@ -222,9 +230,12 @@
             echo " ./dev check      — build + all tests (the pre-push gate)"
             echo " ./dev run  <auto|dash|gcs|rov|mcp|example>"
             echo " ./dev shot <target> [frame]   — headless screenshot -> PNG"
-            echo " ./dev test <name|all>   ·   ./dev fmt | lint"
+            echo " ./dev test <name|all> · fmt|lint · doctor · watch · compiledb"
             echo " make / make test / make font   ·   see DEVELOPING.md"
             echo "═══════════════════════════════════════════"
+            # tab-completion for ./dev
+            [ -n "''${BASH_VERSION:-}" ] && [ -f completions/dev.bash ] && \
+              source completions/dev.bash 2>/dev/null || true
           '';
         };
       }

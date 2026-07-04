@@ -12,8 +12,25 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO"
 
+usage() {
+  cat <<'H'
+./dev — the DeMoD developer CLI
+  build [dcf]                    build ./demod-ui (dcf adds the dm.dcf transport)
+  run   <target> [args]          run auto|dash|gcs|rov|mcp or an examples/ name
+  shot  <target> [frame] [out]   headless render -> a PNG   (DEMOD_SURFACE=n for shells)
+  test  <name|all>               font|loopback|ws_loopback|engine_e2e|obd2|smoke
+  check [--fast]                 build + all tests (pre-push gate; --fast skips engine_e2e)
+  fmt | lint [--all]             stylua + clang-format (advisory; default = your changed files)
+  compiledb                      write compile_commands.json (for clangd)
+  doctor                         report toolchain / tools / versions
+  watch <target> [shot]          rebuild + re-run (or re-shot) on file change
+Examples:
+  ./dev run gcs        ./dev shot auto 60        DEMOD_SURFACE=3 ./dev shot auto
+H
+}
+
 # help needs no toolchain
-case "${1:-help}" in help | -h | --help) sed -n '3,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+case "${1:-help}" in help | -h | --help) usage; exit 0 ;; esac
 
 # ── auto-enter nix develop if the C toolchain isn't available ─────────────────
 have_toolchain() {
@@ -146,31 +163,78 @@ cmd_test() {
   else run_one_test "$n"; fi
 }
 
-cmd_fmt() {
-  if command -v stylua >/dev/null 2>&1; then say "stylua (format)"; stylua "${LUA_DIRS[@]}"
-  else echo "  (stylua not found — Lua unformatted)"; fi
-  if command -v clang-format >/dev/null 2>&1; then
-    say "clang-format (format)"
-    find src include \( -name '*.c' -o -name '*.h' \) -print0 | xargs -0r clang-format -i
-  else echo "  (clang-format not found — C unformatted)"; fi
+# files changed vs HEAD (working tree + staged + untracked) — the actionable set
+changed() {
+  { git diff --name-only HEAD; git diff --name-only --cached; git ls-files -o --exclude-standard; } \
+    2>/dev/null | sort -u
 }
 
-cmd_lint() { # advisory: reports, returns nonzero on style diffs
-  local r=0
-  if command -v stylua >/dev/null 2>&1; then stylua --check "${LUA_DIRS[@]}" || r=1
-  else echo "  (stylua not found)"; fi
-  if command -v clang-format >/dev/null 2>&1; then
-    find src include \( -name '*.c' -o -name '*.h' \) -print0 \
-      | xargs -0r clang-format --dry-run --Werror 2>&1 | head -20 || r=1
-  else echo "  (clang-format not found)"; fi
+# populate arrays LUA[] and C[] for fmt/lint, honoring --all
+_targets() {
+  LUA=(); C=()
+  if [ "${1:-}" = --all ]; then
+    LUA=("${LUA_DIRS[@]}")
+    mapfile -t C < <(find src include \( -name '*.c' -o -name '*.h' \) 2>/dev/null)
+  else
+    mapfile -t LUA < <(changed | grep -E '\.lua$' || true)
+    mapfile -t C < <(changed | grep -E '\.(c|h)$' || true)
+  fi
+}
+
+cmd_fmt() {
+  local LUA C; _targets "${1:-}"
+  if command -v stylua >/dev/null 2>&1 && [ ${#LUA[@]} -gt 0 ]; then say "stylua (${#LUA[@]})"; stylua "${LUA[@]}"; fi
+  if command -v clang-format >/dev/null 2>&1 && [ ${#C[@]} -gt 0 ]; then say "clang-format (${#C[@]})"; clang-format -i "${C[@]}"; fi
+  [ ${#LUA[@]} -eq 0 ] && [ ${#C[@]} -eq 0 ] && say "nothing changed to format (--all for the whole tree)"
+  return 0
+}
+
+cmd_lint() { # advisory: reports, nonzero on style diffs
+  local LUA C r=0; _targets "${1:-}"
+  if command -v stylua >/dev/null 2>&1 && [ ${#LUA[@]} -gt 0 ]; then stylua --check "${LUA[@]}" || r=1; fi
+  if command -v clang-format >/dev/null 2>&1 && [ ${#C[@]} -gt 0 ]; then
+    clang-format --dry-run --Werror "${C[@]}" 2>&1 | head -20; [ "${PIPESTATUS[0]}" = 0 ] || r=1
+  fi
   return $r
 }
 
+cmd_doctor() {
+  say "toolchain & tools"
+  local t
+  for t in gcc make pkg-config python3 nix stylua clang-format bear entr lua-language-server; do
+    if command -v "$t" >/dev/null 2>&1; then printf '  %-22s %s\n' "$t" "$(command -v "$t")"
+    else printf '  %-22s \033[33mmissing\033[0m\n' "$t"; fi
+  done
+  printf '  %-22s %s\n' "SDL2" "$(pkg-config --modversion sdl2 2>/dev/null || echo '?')"
+  printf '  %-22s %s\n' "Lua" "$(pkg-config --modversion lua5.4 2>/dev/null || pkg-config --modversion lua 2>/dev/null || echo '?')"
+  printf '  %-22s %s\n' "font blob" "$([ -f "$HOME/.local/share/demod/unifont.dmf" ] && echo installed || echo 'not installed (make font — optional)')"
+  printf '  %-22s %s\n' "demod-ui" "$([ -x ./demod-ui ] && echo built || echo 'not built (./dev build)')"
+  printf '  %-22s %s\n' "compile_commands" "$([ -f compile_commands.json ] && echo present || echo 'run ./dev compiledb (clangd)')"
+}
+
+cmd_compiledb() {
+  command -v bear >/dev/null 2>&1 || die "bear not found (it's in the dev shell)"
+  say "bear -- make clean + DCF=1"
+  make clean >/dev/null 2>&1
+  bear -- make DCF=1 >/dev/null || die "compiledb build failed"
+  say "wrote compile_commands.json — clangd is ready"
+}
+
+cmd_watch() {
+  command -v entr >/dev/null 2>&1 || die "entr not found (it's in the dev shell)"
+  local t="${1:-}" mode="${2:-run}"
+  [ -n "$t" ] || die "usage: dev watch <target> [run|shot]"
+  say "watch: re-$mode $t on change (Ctrl-C to stop)"
+  find shell auto dash gcs rov examples src include -type f 2>/dev/null | entr -rc "$REPO/dev" "$mode" "$t"
+}
+
 cmd_check() {
-  local fail=0 log; log="$(mktemp)"
-  chk() { local name="$1"; shift; printf '  %-32s' "$name"; if "$@" >"$log" 2>&1; then
-    printf '\033[32mPASS\033[0m\n'; else printf '\033[31mFAIL\033[0m\n'; tail -6 "$log" | sed 's/^/      /'; fail=1; fi; }
-  say "check — CI parity + obd2"
+  local fast=0; [ "${1:-}" = --fast ] && fast=1
+  local fail=0 log t0 ts; log="$(mktemp)"; t0=$SECONDS
+  chk() { local name="$1"; shift; printf '  %-34s' "$name"; ts=$SECONDS
+    if "$@" >"$log" 2>&1; then printf '\033[32mPASS\033[0m %3ds\n' $((SECONDS - ts))
+    else printf '\033[31mFAIL\033[0m %3ds\n' $((SECONDS - ts)); tail -6 "$log" | sed 's/^/      /'; fail=1; fi; }
+  say "check — CI parity + obd2$([ $fast = 1 ] && echo ' (fast)')"
   chk "build (default/MPL)" bash -c 'make clean >/dev/null 2>&1; make >/dev/null'
   chk "build (DCF=1)" bash -c 'make DCF=1 >/dev/null'
   chk "font/decode test" make test
@@ -178,14 +242,12 @@ cmd_check() {
   chk "obd2 reader" bash auto/test/obd2_selftest.sh
   chk "dcf loopback (UDP)" bash audio-stack/bridge/test/loopback.sh
   chk "dcf loopback (WebSocket)" bash audio-stack/bridge/test/ws_loopback.sh
-  chk "real-engine e2e (skips w/o JACK)" bash audio-stack/bridge/test/engine_e2e.sh
-  say "lint (advisory — does not gate)"; cmd_lint || true
+  [ $fast = 1 ] || chk "real-engine e2e (skips w/o JACK)" bash audio-stack/bridge/test/engine_e2e.sh
+  printf '  %-34s' "style (advisory)"
+  if cmd_lint --all >/dev/null 2>&1; then printf 'clean\n'; else printf '\033[33mdiffs — ./dev fmt\033[0m\n'; fi
   rm -f "$log"
+  say "$((SECONDS - t0))s total"
   [ "$fail" = 0 ] && say "CHECK PASSED" || die "CHECK FAILED"
-}
-
-usage() {
-  sed -n '3,10p' "$REPO/dev" | sed 's/^# \{0,1\}//'
 }
 
 case "${1:-help}" in
@@ -193,9 +255,12 @@ case "${1:-help}" in
   run) shift; cmd_run "$@" ;;
   shot) shift; cmd_shot "$@" ;;
   test) shift; cmd_test "$@" ;;
-  check) cmd_check ;;
-  fmt) cmd_fmt ;;
-  lint) cmd_lint ;;
+  check) shift; cmd_check "$@" ;;
+  fmt) shift; cmd_fmt "$@" ;;
+  lint) shift; cmd_lint "$@" ;;
+  compiledb) cmd_compiledb ;;
+  doctor) cmd_doctor ;;
+  watch) shift; cmd_watch "$@" ;;
   help | -h | --help) usage ;;
   *) usage; exit 1 ;;
 esac

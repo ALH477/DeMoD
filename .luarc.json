@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.4",
+  "workspace.library": ["meta"],
+  "workspace.ignoreDir": ["build", "build-wasm", "web", ".git", "audio-stack"],
+  "diagnostics.globals": ["dm", "on_nav", "on_update", "on_draw", "on_midi", "on_input", "on_click"],
+  "diagnostics.disable": ["lowercase-global"],
+  "format.enable": false,
+  "hint.enable": true
+}

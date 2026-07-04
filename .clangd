@@ -1,0 +1,15 @@
+# clangd (C language server). Best results after `./dev compiledb`, which writes
+# compile_commands.json with the real SDL2/Lua flags. The Add flags below are a
+# fallback so headers resolve before you generate it.
+CompileFlags:
+  Add:
+    - -std=c11
+    - -Iinclude
+    - -Isrc
+    - -Isrc/crypto
+    - -Isrc/db
+    - -Ithird_party
+    - -DDEMOD_DCF
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: None
