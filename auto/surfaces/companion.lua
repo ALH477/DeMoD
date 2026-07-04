@@ -4,7 +4,7 @@
 local C = { name = "COMPANION" }
 
 function C.draw(ctx)
-  local th, U, W, H, v = ctx.th, ctx.U, ctx.W, ctx.H, ctx.veh
+  local th, U, W, H, v = ctx.th, ctx.U, ctx.W, ctx.H, ctx.data
   U.text(24, 58, "VEHICLE COMPANION COMPUTER", th.accent, 2)
 
   -- link line

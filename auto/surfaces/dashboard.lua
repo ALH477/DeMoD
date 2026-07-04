@@ -10,8 +10,8 @@ local function mini(ctx, x, y, w, h, label, value, col)
 end
 
 function D.draw(ctx)
-  local th, U, W, H, v = ctx.th, ctx.U, ctx.W, ctx.H, ctx.veh
-  local mph = ctx.units.speed == "mph"
+  local th, U, W, H, v = ctx.th, ctx.U, ctx.W, ctx.H, ctx.data
+  local mph = ctx.cfg.speed_units == "mph"
   local sp = v.speed * (mph and 0.621371 or 1)
   local spmax = mph and 100 or 160
   local a0, a1 = math.rad(140), math.rad(400)
@@ -34,10 +34,11 @@ function D.draw(ctx)
   U.textc(tx, ty + 40, "RPM", th.dim, 1)
 
   -- stat row (kept above the shell's bottom tab bar at H-32)
-  local coolant = v.coolant * (ctx.units.temp == "F" and 9 / 5 or 1) + (ctx.units.temp == "F" and 32 or 0)
+  local f = ctx.cfg.temp_units == "F"
+  local coolant = v.coolant * (f and 9 / 5 or 1) + (f and 32 or 0)
   local y, pw, x = H - 116, math.floor((W - 40) / 4), 20
   mini(ctx, x, y, pw - 10, 68, "COOLANT",
-    string.format("%.0f%s", coolant, ctx.units.temp == "F" and "F" or "C"),
+    string.format("%.0f%s", coolant, f and "F" or "C"),
     v.coolant > 105 and th.alert or th.accent); x = x + pw
   mini(ctx, x, y, pw - 10, 68, "FUEL", string.format("%.0f%%", v.fuel),
     v.fuel < 12 and th.warn or th.ok); x = x + pw

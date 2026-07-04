@@ -162,8 +162,10 @@
         apps.auto = {
           type = "app";
           program = toString (pkgs.writeShellScript "demod-auto" ''
+            export DEMOD_SHELL_DIR=${./shell}/       # the shared companion-shell SDK
             export DEMOD_AUTO_DIR=${./auto}/
-            export PATH=${pkgs.python3}/bin:$PATH
+            # python3 for the OBD-II reader; pipewire/ffmpeg for the media player.
+            export PATH=${pkgs.python3}/bin:${pkgs.pipewire}/bin:${pkgs.ffmpeg}/bin:$PATH
             exec ${demod-ui-dcf}/bin/demod-ui ${./auto}/main.lua "$@"
           '');
         };

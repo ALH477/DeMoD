@@ -23,18 +23,30 @@ function S.draw(ctx)
   U.text(24, H - 52, "turn: move    press: change    OBD device: " .. tostring(ctx.cfg.obd_dev), th.dim, 1)
 end
 
+local function cycle(ctx, i)
+  local r = ROWS[i]
+  local cur, idx = ctx.cfg[r.key], 1
+  for k, o in ipairs(r.opts) do if o == cur then idx = k break end end
+  ctx.cfg[r.key] = r.opts[idx % #r.opts + 1]
+  ctx.save()
+end
+
 function S.nav(action, ctx)
   if action == "prev" then S.focus = (S.focus - 2) % #ROWS + 1; return true end
   if action == "next" then S.focus = S.focus % #ROWS + 1; return true end
-  if action == "activate" then
-    local r = ROWS[S.focus]
-    local cur, idx = ctx.cfg[r.key], 1
-    for i, o in ipairs(r.opts) do if o == cur then idx = i break end end
-    ctx.cfg[r.key] = r.opts[idx % #r.opts + 1]
-    ctx.save()
-    return true
-  end
+  if action == "activate" then cycle(ctx, S.focus); return true end
   return false
+end
+
+-- touch: tapping a row focuses + changes it
+function S.zones(ctx)
+  local x, y, rh = 24, 110, 52
+  local z = {}
+  for i = 1, #ROWS do
+    z[#z + 1] = { x = x, y = y + (i - 1) * rh, w = ctx.W - 48, h = rh - 8,
+      on = function() S.focus = i; cycle(ctx, i) end }
+  end
+  return z
 end
 
 return S
