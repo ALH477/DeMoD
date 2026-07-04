@@ -49,10 +49,15 @@ codec headers it links:
 - `src/ipc/dm_dcf.c` — the `dm.dcf` framework binding, compiled **only** with `make DCF=1`
   (`#ifdef DEMOD_DCF`). The default `demod-ui` build does not include it and stays MPL-2.0.
 - `audio-stack/bridge/**` — `demod-remote-bridge`, a standalone engine-side relay (separate binary).
+- `web/bridge/**` — `dcf-ws-bridge`, the stateless WebSocket↔UDP relay for the browser (WASM)
+  client (vendored from HydraMesh; its Rust deps are fetched at build time via `Cargo.lock`,
+  not committed). The wasm build itself (`src/ipc/dm_dcf.c`'s `__EMSCRIPTEN__` branch) is the
+  same LGPL-3.0 file.
 - `third_party/hydramesh/*.h` — vendored header-only DCF codecs (LGPL-3.0, see that dir's README).
 
 LGPL-3.0 links cleanly into both the MPL framework (file-level) and the GPLv3 engine
-(LGPL-3.0 is GPL-3.0-compatible). Flake outputs: `demod-ui-dcf`, `demod-remote-bridge`.
+(LGPL-3.0 is GPL-3.0-compatible). Flake outputs: `demod-ui-dcf`, `demod-remote-bridge`,
+`dcf-ws-bridge`.
 
 ## Third-party / vendored components
 

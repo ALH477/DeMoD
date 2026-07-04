@@ -111,10 +111,28 @@
           };
         };
 
+        # dcf-ws-bridge: stateless WebSocket<->UDP relay so the browser (WASM)
+        # client can join the plaintext DCF mesh. Vendored LGPL crate (web/bridge,
+        # from HydraMesh); it shuttles opaque datagrams and never parses a frame.
+        # Sits in front of demod-remote-bridge; deploy behind WireGuard.
+        dcf-ws-bridge = pkgs.rustPlatform.buildRustPackage {
+          pname = "dcf-ws-bridge";
+          version = "0.1.0";
+          src = ./web/bridge;
+          cargoLock.lockFile = ./web/bridge/Cargo.lock;
+          doCheck = false;
+          meta = {
+            description = "DCF browser-client WebSocket<->UDP bridge";
+            license = pkgs.lib.licenses.lgpl3Only;
+            mainProgram = "dcf-ws-bridge";
+          };
+        };
+
       in {
         packages = {
           default = demod-ui;
-          inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf demod-remote-bridge;
+          inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf
+                  demod-remote-bridge dcf-ws-bridge;
 
           # Portable single-file build of the framework (bundles the nix closure).
           appimage = nix-appimage.lib.${system}.mkAppImage {

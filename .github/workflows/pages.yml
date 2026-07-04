@@ -1,0 +1,60 @@
+name: Pages (browser demo)
+
+# Builds the WASM UI and publishes web/ to GitHub Pages — a live in-browser demo
+# of the real phosphor UI (standalone, stub backend). Dormant until Actions
+# billing is enabled and Pages is turned on for the repo (Settings > Pages >
+# Source: GitHub Actions). Run manually from the Actions tab meanwhile.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'examples/**'
+      - 'web/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/pages.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let an in-flight run finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: emscripten build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+      - name: Build the UI to WebAssembly
+        run: |
+          nix shell nixpkgs#emscripten nixpkgs#cmake --command bash -eu -c '
+            export EM_CACHE=$PWD/.emcache
+            emcmake cmake -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release
+            cmake --build build-wasm -j'
+      - name: Assemble the site
+        run: cp build-wasm/demod-ui.js build-wasm/demod-ui.wasm build-wasm/demod-ui.data web/
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deploy:
+    name: deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

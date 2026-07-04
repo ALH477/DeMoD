@@ -206,6 +206,13 @@ server — a native window on your desktop, real-time audio on the Linux side. B
 with CMake (`cmake -S . -B build -DDEMOD_DCF=ON`); full setup in
 [`docs/remote-client.md`](docs/remote-client.md).
 
+The same UI also compiles to **WebAssembly** and runs **in a browser tab** — the software
+rasterizer draws to a canvas, pixel-identical. Standalone it's a hostable live demo (open a URL,
+the phosphor UI runs); with a WebSocket relay (`dcf-ws-bridge`, flake output) in front of the
+bridge it drives the Linux engine from the browser (browsers can't do raw UDP). Build with
+`emcmake cmake -S . -B build-wasm && cmake --build build-wasm`; full setup + the
+`ws_loopback.sh` proof in [`docs/browser-client.md`](docs/browser-client.md).
+
 ## Ecosystem
 
 This repo is the framework + audio core. It's the foundation for a wider open stack:

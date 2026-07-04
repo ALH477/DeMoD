@@ -47,8 +47,9 @@ if(EMSCRIPTEN)
   target_include_directories(demod_lua PUBLIC ${LUA_SRC_DIR})
 
   # demod sources: CORE + the (stubbed-off-platform) IPC/input + crypto +
-  # streamdb. No dm_dcf.c (phase B). streamdb runs its inline-flush no-thread
-  # path (also selected by the __EMSCRIPTEN__ guard in streamdb.c).
+  # streamdb + dm_dcf.c (Phase B: its __EMSCRIPTEN__ branch is an async binary
+  # WebSocket to dcf-ws-bridge). streamdb runs its inline-flush no-thread path
+  # (also selected by the __EMSCRIPTEN__ guard in streamdb.c).
   set(WASM_SOURCES
     src/core/framebuffer.c
     src/core/font.c
@@ -66,6 +67,7 @@ if(EMSCRIPTEN)
     src/ipc/demod_control.c
     src/ipc/demod_params.c
     src/ipc/demod_rt_meters.c
+    src/ipc/dm_dcf.c
     src/input/midi_input.c
     src/input/serial_encoder.c
   )
@@ -76,9 +78,11 @@ if(EMSCRIPTEN)
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/crypto
     ${CMAKE_SOURCE_DIR}/src/db
+    ${CMAKE_SOURCE_DIR}/third_party  # hydramesh header-only codec for dm_dcf.c
     ${LUA_SRC_DIR}
   )
-  target_compile_definitions(demod-ui PRIVATE STREAMDB_NO_THREADS)
+  # DEMOD_DCF registers dm.dcf; the WS transport pulls in emscripten/websocket.h.
+  target_compile_definitions(demod-ui PRIVATE STREAMDB_NO_THREADS DEMOD_DCF)
   # -sUSE_SDL=2 in CFLAGS so <SDL2/SDL.h> resolves from the emscripten port.
   target_compile_options(demod-ui PRIVATE "SHELL:-sUSE_SDL=2")
   target_link_libraries(demod-ui PRIVATE demod_lua)
@@ -90,6 +94,7 @@ if(EMSCRIPTEN)
     "SHELL:-sALLOW_MEMORY_GROWTH=1"
     "SHELL:-sEXIT_RUNTIME=0"
     "SHELL:-sEXPORTED_RUNTIME_METHODS=['callMain','FS']"
+    "SHELL:-lwebsocket.js"  # emscripten WebSocket API for dm_dcf.c's WS transport
     "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/examples/dsp_studio.lua@main.lua"
   )
   # Emit demod-ui.js (+ .wasm + .data), not an .html shell (web/index.html hosts).

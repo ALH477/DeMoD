@@ -30,6 +30,9 @@ jobs:
       - name: DCF remote-transport loopback (bridge <-> dm.dcf over UDP)
         run: nix develop --command bash audio-stack/bridge/test/loopback.sh
 
+      - name: DCF over WebSocket (browser path — dcf-ws-bridge relay)
+        run: bash audio-stack/bridge/test/ws_loopback.sh
+
       - name: Headless smoke — every example renders and exits clean
         run: |
           nix develop --command bash -eu -c '

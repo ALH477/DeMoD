@@ -59,6 +59,13 @@
     window.addEventListener('load', function () { canvasEl.focus(); });
     canvasEl.addEventListener('click', function () { canvasEl.focus(); });
 
+    // Remote engine (optional): dm.dcf's WASM transport opens a WebSocket to a
+    // dcf-ws-bridge. It reads window.DEMOD_WS_BRIDGE, defaulting to
+    // ws(s)://<this-page-host>/dcf. Override with ?bridge=wss://host:port/dcf.
+    // (Deploy the bridge behind WireGuard — the DCF wire is plaintext.)
+    var _b = new URLSearchParams(location.search).get('bridge');
+    if (_b) window.DEMOD_WS_BRIDGE = _b;
+
     var Module = {
       canvas: canvasEl,
       // No argv in the browser: main.c defaults lua_entry to "main.lua", which is
