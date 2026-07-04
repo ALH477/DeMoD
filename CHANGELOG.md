@@ -7,6 +7,17 @@ versioning while pre-1.0.
 ## [Unreleased]
 
 ### Added
+- **DeMoD Quanta codec** (`quanta/`, GPLv3-or-commercial): an analysis-to-synthesis
+  audio compiler — a matching-pursuit analyzer turns a WAV into a `.qsc` score, and
+  the freeze step compiles that score into a pure static Faust `.dsp` (the decoder is
+  a `.dsp`). Three standalone C CLIs (`quanta-analyzer` / `-render` / `-freeze`) plus
+  a Lua score-browser panel (MPL-2.0). Flake outputs `packages.quanta` and
+  `apps.quanta` (`nix run .#quanta`). Verified: null test −260.7 dBFS (gate ≤ −120),
+  M0 tonal LSD 1.55 dB.
+- **MCP quanta tools**: `demod_quanta_compile` (WAV → score → frozen `.dsp`),
+  `demod_quanta_verify` (the null + M0 tonal gates), and `demod_quanta_render`
+  (score-browser panel → PNG), plus the `demod://quanta-spec` resource. The flake
+  devShell gains `faust` + numpy so `cd quanta && make test` runs under `nix develop`.
 - **DCF / HydraMesh remote transport** (opt-in, `make DCF=1`): run the engine on
   another machine and drive it from the UI over UDP. New `dm.dcf` binding,
   `demod-remote-bridge` sidecar, vendored LGPL-3.0 codecs, and a headless loopback

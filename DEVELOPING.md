@@ -27,7 +27,7 @@ PATH — so a fresh `git clone` + `./dev check` works if you have Nix. Without N
 |--------|------|---------|
 | **Makefile** (canonical) | the framework binary | `make` → `./demod-ui`; `make DCF=1` adds `dm.dcf`; `make test`, `make font`, `make clean` |
 | **CMake** (additive) | macOS/Windows client + WASM | `cmake -S . -B build -DDEMOD_DCF=ON`; WASM: `emcmake cmake -S . -B build-wasm && cmake --build build-wasm` |
-| **Nix flake** | reproducible builds + the audio stack | `nix build .#{default,demod-rt,demod-orchestrator,demod-ui-dcf,demod-remote-bridge,dcf-ws-bridge,appimage}` |
+| **Nix flake** | reproducible builds + the audio stack + the quanta codec | `nix build .#{default,demod-rt,demod-orchestrator,demod-ui-dcf,demod-remote-bridge,dcf-ws-bridge,quanta,appimage}` |
 
 > **Note:** `make DCF=1` after a plain `make` used to silently leave `dm.dcf` absent (stale objects). The
 > Makefile now tracks the `DCF`/`LOCAL_DSP`/`STEAM` flag set (`.build-tag`) and recompiles when it
@@ -35,7 +35,7 @@ PATH — so a fresh `git clone` + `./dev check` works if you have Nix. Without N
 
 ## Running from a working tree
 
-`nix run .#{auto,dash,gcs,rov,mcp,check}` runs the store-built versions. To run from your **checkout**,
+`nix run .#{auto,dash,gcs,rov,quanta,mcp,check}` runs the store-built versions. To run from your **checkout**,
 use `./dev run <target>` (it builds `DCF=1` and sets the env below). Or set the env yourself:
 
 | Var | For | Default |
@@ -52,7 +52,8 @@ use `./dev run <target>` (it builds `DCF=1` and sets the env below). Or set the 
 
 There's no single "test suite" file — tests are focused scripts, all run by `./dev test` / `./dev check`:
 `make test` (font/decode, display-free), `audio-stack/bridge/test/{loopback,ws_loopback,engine_e2e}.sh`
-(the DCF transport + real-engine E2E; `engine_e2e` self-skips without JACK/RT), `auto/test/obd2_selftest.sh`
+(the DCF transport + real-engine E2E; `engine_e2e` self-skips without JACK/RT), `cd quanta && make test`
+(the codec null + M0 tonal gates; needs `faust` + numpy, both in the devShell), `auto/test/obd2_selftest.sh`
 (mock ELM327 → OBD reader), and a headless render smoke over the examples. `./dev check` mirrors
 `.github/workflows/ci.yml` exactly, plus obd2. *(A `busted` Lua unit layer is a noted future gap.)*
 
@@ -81,6 +82,8 @@ whole-tree `./dev fmt --all` would be a large diff — keep it scoped to what yo
   `dm.dcf` (`src/ipc/dm_dcf.c`) is **LGPL-3.0**.
 - **Audio stack** (`audio-stack/` — `demod-rt` + orchestrator + IPC) — **GPLv3-only OR commercial**
   (the DEMOD DUAL LICENSE). Separate program over socket/shm IPC; see [`LICENSING.md`](LICENSING.md).
+- **Quanta codec** (`quanta/` — analyzer + render + freeze + QSC) — **GPLv3-only OR commercial**
+  (same DEMOD DUAL LICENSE); the `ui/` panel is **MPL-2.0**. Standalone CLIs; see [`LICENSING.md`](LICENSING.md).
 - Every file carries an SPDX header (CI-relevant; `CONTRIBUTING.md`).
 
 ## The MCP server (drive the repo from an AI agent)
