@@ -25,6 +25,37 @@ position — nearly every binding US duty attaches to a physical device, a comme
 operator. That posture changes the moment anyone **sells hardware, offers a hosted data service, or
 ships flashable end-vehicle binaries** (see "If you commercialize").
 
+## Component licensing — the GPLv3-or-commercial audio engine (the key integrator IP decision)
+
+The stack is **two layers, two licenses** (full breakdown in [`../LICENSING.md`](../LICENSING.md)):
+
+- **GUI framework + every shell** — this repo root + `shell/` + `auto/`/`gcs/`/`rov/`/`dash/` are
+  **MPL-2.0** (`dm.dcf` is LGPL-3.0). Build open or closed on them; they never impose copyleft on
+  your own code. A head unit that ships **only** the framework/apps (e.g. a pure telemetry dashboard)
+  touches no copyleft — MPL only.
+- **Audio stack** — `audio-stack/` (the `demod-rt` engine, the Haskell orchestrator, their IPC
+  contract) is the **DEMOD DUAL LICENSE: GPLv3-only OR commercial** (`audio-stack/LICENSE`).
+
+A DeMoD Auto head unit that actually **processes audio** (the MEDIA/EQ surface drives that engine)
+distributes the engine binary, so a commercial integrator must pick one:
+
+- **GPLv3** (free): ship it, but **offer source** for the engine + orchestrator (and any modifications)
+  to recipients and preserve its notices. The MPL app and the GPL engine are **separate programs over
+  socket/shm IPC** ("mere aggregation"), so the app is not a derivative and stays MPL — but the GPL
+  engine binary you distribute is still bound by GPLv3.
+- **Commercial** ($249 one-time, perpetual per developer — `https://demod.dev/license`): keep the
+  engine proprietary and distribute binaries without source disclosure. For **physical hardware** (a
+  head unit) it's a **3% hardware-revenue share** to DeMoD (100% of any software/plugin revenue is
+  yours), tracked by a privacy-friendly SHA256 firmware-hash scheme — no per-device activation,
+  telemetry, or runtime checks (terms in `audio-stack/LICENSE`). Faust `.dsp` effect sources are
+  separate (your copyright; the compiled `.so` follows whichever DeMoD license you chose).
+
+Practical guidance for an infotainment integrator:
+- **Research / open head unit** → GPLv3 is free; publish the engine source.
+- **Commercial head unit selling hardware** → take the Commercial License (proprietary OK + 3%
+  hardware share), or go fully GPLv3 and publish. Either way the MPL framework/apps add nothing.
+- **No audio engine** (telemetry/GCS/ROV/dash only) → the dual license never applies.
+
 ## What the framework ships (safety/privacy by default)
 
 These are wired into DeMoD Auto + the companion-shell SDK today:
@@ -60,11 +91,13 @@ hooks; wiring them to a certified, validated product is your job.
 
 ## Posture
 
-- **Research / non-commercial framing, AS-IS, no warranty.** The code is provided under MPL-2.0 with no
+- **Research / non-commercial framing, AS-IS, no warranty.** The framework + shells are MPL-2.0 and the
+  audio engine/orchestrator are GPLv3-or-commercial (see *Component licensing* above) — all with no
   warranty; it is a framework for research and integration, not a finished aftermarket product. The
-  no-warranty/license terms reliably defeat licensee warranty claims; the stronger protections are
-  structural (software isn't a "product," a non-commercial author isn't a "commercial seller"). The
-  strongest single move is **not selling finished head units yourself.**
+  no-warranty terms reliably defeat licensee warranty claims; the stronger protections are structural
+  (software isn't a "product," a non-commercial author isn't a "commercial seller"). The strongest
+  single move is **not selling finished head units yourself** — and if you do, the audio engine's
+  commercial license (with its hardware revenue share) is the intended commercial path.
 - **Export.** The DCF/HydraMesh transport avoids built-in cryptography to stay export-control-free
   (EAR/ITAR); adding cryptography can re-trigger classification — revisit before doing so.
 
