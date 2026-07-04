@@ -7,6 +7,7 @@
 ![C11](https://img.shields.io/badge/C-11-FFD94C.svg)
 ![Lua 5.4](https://img.shields.io/badge/Lua-5.4-4CFF82.svg)
 ![GPU](https://img.shields.io/badge/GPU-none-FF4C6A.svg)
+[![Docker Hub](https://img.shields.io/badge/docker-alh477%2Fdemod--dev-2496ED.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/alh477/demod-dev)
 
 ![DeMoD UI — DSP Studio](assets/dsp_studio.png)
 
@@ -52,6 +53,24 @@ No Nix? You need SDL2, Lua 5.4, pkg-config, and a C compiler:
 make
 ./demod-ui examples/hello.lua
 ```
+
+### Or run it in Docker
+
+Prebuilt images on Docker Hub — [`alh477/demod-dev`](https://hub.docker.com/r/alh477/demod-dev) —
+bundle the whole **soft-RT** stack (engine + Quanta codec + DCF/HydraMesh bridges + the browser
+WASM UI + a live HLS monitor of the engine):
+
+```bash
+docker run --rm -it --cap-add=SYS_NICE --cap-add=IPC_LOCK \
+  --ulimit rtprio=95 --ulimit memlock=-1 --shm-size=512m \
+  -p 8080:8080 -p 7000:7000 -p 47000:47000/udp \
+  alh477/demod-dev:runtime            # slim runtime; :latest is the fat dev image
+# → http://localhost:8080/  (WASM UI + /hls/monitor.m3u8)
+```
+
+⚠ It is a **soft-real-time dev appliance — not representative of real hardware** (no PREEMPT_RT,
+no guaranteed SCHED_FIFO/mlock). Full details, compose profiles, and the audio matrix are in
+[`docker/README.md`](docker/README.md).
 
 A minimal app is a Lua script. The framework hands you a root widget; you hang things off it:
 
