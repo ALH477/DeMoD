@@ -15,6 +15,8 @@ A **pure software-rendered GUI framework** (C11 + SDL2 + Lua, **no GPU** — the
   (AUV/ROV console). Each = its own theme + provider + surfaces on the SDK.
 - **Audio stack** — `audio-stack/` (`demod-rt` engine + Haskell orchestrator + IPC). Driven over a
   control socket; **separate program**, not linked into the UI.
+- **Quanta codec** — `quanta/` (analysis-to-synthesis: matching-pursuit analyzer → `.qsc` score →
+  pure static Faust `.dsp` freeze + a Lua score-browser panel). **Separate program**; standalone CLIs.
 - **Remote transport** — `dm.dcf` (`src/ipc/dm_dcf.c`), a 17-byte HydraMesh frame over UDP/WebSocket;
   `audio-stack/bridge/` relays it. Powers the remote/browser clients.
 - **Browser client** — the framework compiles to WASM (`CMakeLists.txt` emscripten path, `web/`).
@@ -31,7 +33,7 @@ A **pure software-rendered GUI framework** (C11 + SDL2 + Lua, **no GPU** — the
 ```
 
 `./dev` has zero deps and **auto-enters `nix develop`** if the toolchain isn't on PATH. Raw equivalents:
-`make` / `make DCF=1` / `make test`; `nix run .#{auto,dash,gcs,rov,mcp,check,dev}`; `nix build .#default`.
+`make` / `make DCF=1` / `make test`; `nix run .#{auto,dash,gcs,rov,quanta,mcp,check,dev}`; `nix build .#{default,quanta}`.
 
 **Definition of done:** `./dev check` is green; new files carry an `SPDX-License-Identifier` header;
 changes are additive (don't reformat the tree — lint is advisory). Verify UI changes with `./dev shot`
@@ -81,6 +83,8 @@ Multi-license by layer (full map in `LICENSING.md`); **every file has an SPDX he
   DEMOD DUAL LICENSE). The MPL UI talks to it only over socket/shm (separate programs) so the UI stays
   MPL; a product that *ships* the engine picks GPLv3 (offer source) or the commercial license (see
   `docs/automotive-compliance.md`).
+- **Quanta codec** (`quanta/` analyzer + render + freeze + QSC format) — **GPLv3-only OR commercial**
+  (the same DEMOD DUAL LICENSE); its `ui/quanta_panel.lua` is **MPL-2.0**. Standalone program.
 
 **Reserved trade dress.** The *assembled* DeMoD/TERMINUS look — the oscilloscope-phosphor palette +
 CRT scanlines/vignette/pulse + Sierpinski-glow + 8×16 phosphor type + blade/coverflow shell, **as a

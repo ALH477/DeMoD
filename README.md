@@ -14,7 +14,7 @@ DeMoD paints its own pixels. There is no OpenGL, no Vulkan, no shader, no browse
 
 You script the interface in Lua. The same script runs on a 320-pixel panel wired inside an instrument and on a 1080p desktop, because this thing was built to survive on hardware that has no business running a GUI. Underneath, an optional real-time audio stack (a C JACK engine + a Haskell orchestrator) can run on the same box or on another one across a mesh — see [Ecosystem](#ecosystem).
 
-**Two layers, two licenses:** the GUI **framework** (this repo's root) is **MPL-2.0** — build anything on it, open or closed. The **audio stack** (`audio-stack/`) is **GPLv3-or-commercial**. They are separate programs (socket/shm IPC), so taking only the framework never touches the GPL. Full breakdown in [`LICENSING.md`](LICENSING.md).
+**Two licenses:** the GUI **framework** (this repo's root) is **MPL-2.0** — build anything on it, open or closed. The dual-licensed engines — the **audio stack** (`audio-stack/`) and the **Quanta codec** (`quanta/`) — are **GPLv3-or-commercial**. They are separate programs (socket/shm IPC, or standalone CLIs), so taking only the framework never touches the GPL. Full breakdown in [`LICENSING.md`](LICENSING.md).
 
 ## Why this exists
 
@@ -351,6 +351,8 @@ This repo has **two independently-licensed parts** — full details in `LICENSIN
 - **The audio stack** (`audio-stack/`) is **GPLv3-only OR commercial** (dual;
   `audio-stack/LICENSE`). It's a *separate program* (socket/shm IPC), so it doesn't
   relicense the framework.
+- **The Quanta codec** (`quanta/`) is **GPLv3-only OR commercial** (dual;
+  `quanta/LICENSE`) — standalone analysis-to-synthesis CLIs; its `ui/` panel is MPL-2.0.
 
 Third-party components keep their own licenses (see `THIRD_PARTY_LICENSES.md`).
 

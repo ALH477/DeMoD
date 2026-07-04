@@ -21,6 +21,9 @@ A living, non-binding list of directions for the framework. Contributions welcom
   `make font`), with a compiled-in ASCII fast path.
 - **IPC + audio hooks** — shared-memory param/meter buses and a control-socket client
   for driving an external real-time audio engine (see `audio-stack/`).
+- **Quanta codec** (`quanta/`) — analysis-to-synthesis compiler: matching-pursuit
+  analyzer → `.qsc` score → pure static Faust `.dsp` freeze, with a Lua score-browser
+  panel. Verified null test −260.7 dBFS, M0 tonal LSD 1.55 dB.
 
 ## Under consideration
 
