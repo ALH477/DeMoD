@@ -1,0 +1,7 @@
+# Lua formatting for DeMoD (advisory — `./dev fmt` / `./dev lint`). Matches the
+# 2-space, ~100-col style used across shell/, auto/, dash/, gcs/, rov/, examples/.
+column_width = 100
+indent_type = "Spaces"
+indent_width = 2
+quote_style = "AutoPreferDouble"
+call_parentheses = "Always"

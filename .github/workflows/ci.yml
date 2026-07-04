@@ -38,6 +38,9 @@ jobs:
         # CI runners; a full pass needs an audio-capable RT host. See test/README.md.
         run: bash audio-stack/bridge/test/engine_e2e.sh
 
+      - name: OBD-II reader (mock ELM327 -> auto/vehicle/obd2-reader.py)
+        run: nix develop --command bash auto/test/obd2_selftest.sh
+
       - name: Headless smoke — every example renders and exits clean
         run: |
           nix develop --command bash -eu -c '
@@ -49,6 +52,18 @@ jobs:
               echo "  $e: ok"
             done
           '
+
+  # ── Style (advisory: reports, never fails the run) ───────────────────
+  lint:
+    name: format (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+      - name: stylua + clang-format (report only)
+        run: nix develop --command ./dev lint
 
   # ── Cross-platform client (native UI over DCF/UDP) — CMake build ──────
   # Proves the macOS / Windows remote-client build (core + dm.dcf, local IPC

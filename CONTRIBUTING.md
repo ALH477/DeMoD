@@ -27,7 +27,9 @@ won't be merged.
   `THIRD_PARTY_LICENSES.md`. Don't relicense vendored code (e.g. monocypher).
 - The framework is a pure software renderer — no GPU/OpenGL/Vulkan. Drawing is
   scanline-by-scanline in C; the fixed 8x16 font is ASCII 32–126 only.
-- Build + smoke before sending: `nix develop && make`, then run an example.
+- Build + test before sending: **`./dev check`** (builds + runs every test CI does). See
+  [`DEVELOPING.md`](DEVELOPING.md) for the dev loop (`./dev run|shot|test|fmt`). `./dev fmt` (stylua +
+  clang-format) is appreciated but advisory.
 
 ## Scope
 

@@ -88,6 +88,16 @@ ifeq ($(DCF),1)
   OBJS += src/ipc/dm_dcf.o
 endif
 
+# ── Feature-flag build guard ─────────────────────────────────────────
+# DCF/LOCAL_DSP/STEAM append -D defines + objects, but the generic %.o rule has
+# no dependency on them — so a prior build with a different flag set leaves stale
+# objects (notably src/lua/lua_bindings.o, which #ifdef DEMOD_DCF-registers dm.dcf:
+# `make DCF=1` after a plain `make` would silently leave dm.dcf absent). Record
+# the active flags; if they changed since the last build, drop the objects so they
+# recompile correctly. No more `make clean` dance when toggling DCF/LOCAL_DSP/STEAM.
+BUILD_TAG := DCF=$(DCF) LOCAL_DSP=$(LOCAL_DSP) STEAM=$(STEAM)
+$(shell [ "`cat .build-tag 2>/dev/null`" = "$(BUILD_TAG)" ] || rm -f $(OBJS) $(BIN) .build-tag)
+
 # ── Targets ──────────────────────────────────────────────────────────
 
 .PHONY: all clean run run-dsp run-studio run-viz run-launcher test font font-subset
@@ -128,6 +138,7 @@ $(TEST_BIN): tests/test_font_utf8.c src/core/font.o src/core/framebuffer.o
 
 $(BIN): $(OBJS)
 	$(LINK) -o $@ $^ $(LDFLAGS)
+	@printf '%s' "$(BUILD_TAG)" > .build-tag
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -136,7 +147,7 @@ $(BIN): $(OBJS)
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 clean:
-	rm -f $(OBJS) $(BIN)
+	rm -f $(OBJS) $(BIN) $(TEST_BIN) .build-tag
 
 run: $(BIN)
 	./$(BIN) examples/hello.lua

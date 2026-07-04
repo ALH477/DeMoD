@@ -22,7 +22,7 @@ make clean
 
 Manual builds need SDL2, Lua 5.4, pkg-config, GCC/Clang. The Makefile auto-detects Lua via `pkg-config lua5.4` then falls back to `lua`.
 
-There is **no test suite, linter, or formatter** configured, and this is **not a git repository**. Verify changes by building and running the relevant example. `valgrind ./demod-ui examples/hello.lua` is the standard way to check the C layer for leaks/overruns.
+Verify changes with **`./dev check`** (build + every test CI runs + obd2; the pre-push gate) — or the pieces: `./dev test <name>`, `./dev shot <target>` for a headless screenshot, `./dev run <app>`. Tests are focused scripts (font/decode, the DCF loopbacks, the real-engine E2E, obd2), not one suite; formatting is advisory (`./dev fmt`/`lint`, stylua + clang-format). `valgrind ./demod-ui examples/hello.lua` checks the C layer for leaks/overruns. See `DEVELOPING.md`.
 
 ## Architecture: the layered stack
 

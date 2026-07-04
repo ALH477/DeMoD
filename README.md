@@ -32,8 +32,16 @@ If you have ever wanted to write a real interface the way you write a demo, this
 ## Quickstart
 
 ```bash
+./dev run hello      # build + run an example (auto-enters `nix develop` if needed)
+./dev check          # build + every test — the pre-push gate
+```
+
+`./dev` is a zero-dep CLI (`run` / `shot` / `test` / `check` / `build` / `fmt`); full dev loop in
+[`DEVELOPING.md`](DEVELOPING.md). Prefer it raw?
+
+```bash
 nix develop          # drop into the dev shell (SDL2, Lua, toolchain)
-make                 # build ./demod-ui
+make                 # build ./demod-ui   (make DCF=1 adds dm.dcf)
 make run             # hello world
 ```
 

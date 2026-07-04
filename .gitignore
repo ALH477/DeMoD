@@ -31,3 +31,6 @@ audio-stack/bridge/test/*.sock
 web/demod-ui.js
 web/demod-ui.wasm
 web/demod-ui.data
+
+# feature-flag build guard stamp
+.build-tag

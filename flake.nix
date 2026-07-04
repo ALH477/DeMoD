@@ -195,6 +195,14 @@
           '');
         };
 
+        # `nix run .#check` — the pre-push gate (= ./dev check, against the tree).
+        apps.check = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-check" ''
+            exec ${pkgs.bash}/bin/bash "''${DEMOD_REPO:-$PWD}/dev" check
+          '');
+        };
+
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             # framework
@@ -204,16 +212,18 @@
             ghc cabal-install
             # fonts (make font)
             python3 curl gzip
+            # dev CLI: ./dev fmt|lint (advisory)
+            stylua clang-tools
           ];
 
           shellHook = ''
             echo "═══════════════════════════════════════════"
             echo " DeMoD UI — Development Shell"
-            echo " make            — build the framework"
-            echo " make test       — UTF-8 font tests"
-            echo " make font       — build the Unifont glyph blob (CJK/UTF-8)"
-            echo " make run        — run the hello example"
-            echo " nix build .#demod-rt .#demod-orchestrator  — audio stack"
+            echo " ./dev check      — build + all tests (the pre-push gate)"
+            echo " ./dev run  <auto|dash|gcs|rov|mcp|example>"
+            echo " ./dev shot <target> [frame]   — headless screenshot -> PNG"
+            echo " ./dev test <name|all>   ·   ./dev fmt | lint"
+            echo " make / make test / make font   ·   see DEVELOPING.md"
             echo "═══════════════════════════════════════════"
           '';
         };

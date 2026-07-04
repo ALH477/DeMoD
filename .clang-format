@@ -1,0 +1,10 @@
+# C formatting for DeMoD (advisory — `./dev fmt` / `./dev lint`). Matched to the
+# existing src/ style: 4-space, attached braces, right-aligned pointers, ~100 col.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+BreakBeforeBraces: Attach
+PointerAlignment: Right
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+SpaceAfterCStyleCast: false

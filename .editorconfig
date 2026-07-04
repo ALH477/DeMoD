@@ -1,0 +1,30 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{c,h,cpp,hpp}]
+indent_style = space
+indent_size = 4
+
+[*.lua]
+indent_style = space
+indent_size = 2
+
+[*.{sh,py}]
+indent_style = space
+indent_size = 4
+
+[*.nix]
+indent_style = space
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+
+# Markdown: keep hard line breaks
+[*.md]
+trim_trailing_whitespace = false
