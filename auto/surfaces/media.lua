@@ -3,7 +3,9 @@
 -- auto/media.sh over a command FIFO + a state file) and a 3-band EQ that drives
 -- the audio engine over the control socket (dm.ctl_set_param on a configurable
 -- slot; a no-op if no engine is up). Cursor spans transport + EQ.
-local M = { name = "MEDIA", cursor = 1 }
+-- restricted = true: the shell's motion lockout gates this entertainment surface
+-- while the vehicle is moving (CVC §27602 / NHTSA distraction guidance).
+local M = { name = "MEDIA", cursor = 1, restricted = true }
 
 local STATE   = os.getenv("DEMOD_MEDIA_STATE") or "/tmp/demod-media.kv"
 local CMD     = os.getenv("DEMOD_MEDIA_CMD") or "/tmp/demod-media.cmd"

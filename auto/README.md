@@ -49,11 +49,26 @@ bash auto/test/obd2_selftest.sh   # a mock ELM327 on a pty -> obd2-reader.py -> 
 Headless render: `SDL_VIDEODRIVER=dummy DEMOD_SHOT=/tmp/a.ppm ./demod-ui auto/main.lua`
 (`DEMOD_AUTO_SURFACE=1|2|3` deep-links a surface for screenshots).
 
-## Scope & safety
+## Safety & compliance (defaults on)
 
-Read-only telemetry + HMI. This is **not** a driving-critical controller — per
-[`../docs/vehicle-feasibility.md`](../docs/vehicle-feasibility.md), DeMoD is the infotainment /
-companion / HMI layer, never the safety-critical loop. No throttle/brake/steering actuation.
+DeMoD Auto ships the safety/privacy defaults a FOSS infotainment framework should — see the
+integrator guide **[`../docs/automotive-compliance.md`](../docs/automotive-compliance.md)**:
+
+- **Non-preemptible rear camera** (`surfaces/camera.lua` + `camera.sh`): reverse forces the rear view
+  and blocks navigating away from it — the FMVSS 111 function can't be preempted by entertainment.
+- **Motion lockout** (on by default): entertainment surfaces (MEDIA) are disabled above ~8 km/h with a
+  "PULL OVER" screen; the cluster, camera, and config stay available.
+- **Data-minimization**: no telematics collected/sent by default; the mesh is opt-in; the camera is
+  captured only when explicitly configured (`$DEMOD_CAMERA_DEV`), never an arbitrary webcam.
+- **Read-only OBD** (no CAN writes) and **no end-user RF controls**.
+
+## Scope
+
+**AS IS, no warranty (MPL-2.0).** A framework for research and integration — **not** a finished
+aftermarket product, and **not** a driving-critical controller ([`../docs/vehicle-feasibility.md`](../docs/vehicle-feasibility.md)):
+DeMoD is the infotainment / companion / HMI layer, never the safety-critical loop. No throttle/brake/
+steering actuation; OBD is read-only. Certification (FCC, FMVSS 111 validation, ISO 26262/21434) is the
+integrator's responsibility — see the compliance guide.
 
 Roadmap (seams in place): an **Audio/media** surface (car EQ/DSP over the engine control socket + an
 out-of-engine music player), nav/maps, a backup camera (V4L2 → `dm.draw.blit`), climate/CAN, BT phone,

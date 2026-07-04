@@ -20,6 +20,17 @@ local function read_kv(path)
   return t
 end
 
+-- Reverse gear: from a real car this is the reverse-light circuit (wire it to
+-- $DEMOD_REVERSE=1 or a $DEMOD_REVERSE_STATE file via a GPIO helper). Drives the
+-- rear camera's non-preemptible priority. Read-only.
+local function reverse_on()
+  if os.getenv("DEMOD_REVERSE") == "1" then return true end
+  local f = io.open(os.getenv("DEMOD_REVERSE_STATE") or "/tmp/demod-reverse", "r")
+  if not f then return false end
+  local s = f:read("*l"); f:close()
+  return s == "1" or s == "R"
+end
+
 function M.new(cfg)
   cfg = cfg or {}
   local self = {
@@ -54,19 +65,21 @@ function M.new(cfg)
   function self:status() return self.mode end
 
   function self:read()
+    local rev = reverse_on()
     if self.mode == "obd2" and self.obd then
       local o = self.obd
       return { ok = true, source = "OBD-II", speed = o.speed or 0, rpm = o.rpm or 0,
                coolant = o.coolant or 0, fuel = o.fuel or 0, volts = o.volts or 0,
-               throttle = o.throttle or 0, gear = "D" }
+               throttle = o.throttle or 0, gear = rev and "R" or "D", reverse = rev }
     end
     if self.mode == "obd2-nolink" then
       return { ok = false, source = "OBD-II (no link)", speed = 0, rpm = 0, coolant = 0,
-               fuel = 0, volts = 0, throttle = 0, gear = "--" }
+               fuel = 0, volts = 0, throttle = 0, gear = "--", reverse = rev }
     end
     local s = self.sim
     return { ok = true, source = "Simulator", speed = s.speed, rpm = s.rpm, coolant = s.coolant,
-             fuel = s.fuel, volts = s.volts, throttle = s.throttle, gear = s.gear }
+             fuel = s.fuel, volts = s.volts, throttle = s.throttle,
+             gear = rev and "R" or s.gear, reverse = rev }
   end
 
   return self

@@ -43,6 +43,18 @@ simulator as the always-available fallback" (see `../auto/vehicle/telemetry.lua`
 everything else → the active surface's `nav`. Touch rides the zone overlay. `DEMOD_SURFACE=n`
 deep-links a surface (handy for screenshots). Optional mesh: set `DEMOD_DCF_HOST`/`_PORT`.
 
+## Safety hooks (for vehicle shells)
+
+The shell provides two safety primitives (opt-in — apps that don't set them are unaffected):
+- **Motion lockout.** Supply `speed = function(data) return kmh end` and (optionally) `lockout_kmh`
+  (default 8). A surface flagged `restricted = true` (entertainment) is gated with a "PULL OVER" screen
+  and ignores input while `ctx.locked`; `safety = true` surfaces are never gated. On by default (a
+  `lockout` config key can disable it). `ctx.locked`/`ctx.speed` are exposed.
+- **Priority (non-preemptible) surface.** `priority = function(ctx) return index | nil end` forces a
+  surface and blocks navigation away from it (e.g. a rear camera on reverse).
+
+See DeMoD Auto (`../auto/`) and `../docs/automotive-compliance.md` for the road-vehicle usage.
+
 ## Files
 
 `shell.lua` (runtime) · `draw.lua` (rect/panel/text/arc/needle/bar helpers, `ctx.U`) ·

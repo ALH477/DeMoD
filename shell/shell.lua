@@ -64,17 +64,25 @@ function M.run(app)
   end
 
   local function ctx()
+    local data = provider and provider:read() or {}
+    -- Motion lockout ("driver mode"): if the app reports a speed and it exceeds
+    -- the threshold, restricted (entertainment) surfaces are gated. On by default.
+    local speed = app.speed and app.speed(data) or 0
+    local locked = (app.speed ~= nil) and (cfg.lockout ~= "off") and (speed > (app.lockout_kmh or 8))
     return {
       th = resolve(cfg.theme, app.palettes), W = dm.width(), H = dm.height(), U = U,
       cfg = cfg, save = save, provider = provider,
-      data = provider and provider:read() or {},
+      data = data, speed = speed, locked = locked,
       dcf = dcf, events = events, log = log, active = active,
     }
   end
 
   if app.on_start then app.on_start(ctx()) end
 
-  local function set_active(i) active = ((i - 1) % #surfaces) + 1; dm.redraw() end
+  -- Priority (non-preemptible) surface: when app.priority(ctx) returns an index
+  -- (e.g. the rear camera on reverse), the shell forces it and blocks switching.
+  local forced, prev = false, nil
+  local function set_active(i) if forced then return end; active = ((i - 1) % #surfaces) + 1; dm.redraw() end
   local function dispatch(action)
     if action == "tab" then set_active(active + 1)
     elseif action == "tab_prev" then set_active(active - 1)
@@ -84,7 +92,10 @@ function M.run(app)
       else cfg.theme = (resolve(cfg.theme, app.palettes) == app.palettes.night) and "day" or "night" end
       save(); log("theme: " .. tostring(cfg.theme))
     else
-      local s = surfaces[active]; if s.nav then s.nav(action, ctx()) end
+      local c = ctx()
+      local s = surfaces[active]
+      if c.locked and s.restricted then return end   -- no operating entertainment in motion
+      if s.nav then s.nav(action, c) end
     end
   end
 
@@ -98,17 +109,30 @@ function M.run(app)
       while true do local ev = dm.dcf.poll_event(); if not ev then break end; log("mesh: " .. ev.kind) end
       dm.dcf.poll()
     end
+    -- priority surface (e.g. rear camera on reverse): force it, remember where
+    -- we were, restore on release.
+    if app.priority then
+      local p = app.priority(ctx())
+      if p and not forced then prev = active end
+      if p then active = p; forced = true
+      elseif forced then active = prev or 1; forced = false end
+    end
+
     local c = ctx()
     if surfaces[active].update then surfaces[active].update(dt, c) end
 
-    -- touch: tab-bar zones (always) + the active surface's declared zones
+    -- touch: tab-bar zones (always) + the active surface's declared zones. A
+    -- locked restricted surface exposes no interactive zones.
     local zones = {}
     local n, tw, tb = #surfaces, c.W / #surfaces, c.H - 32
-    for i = 1, n do
-      zones[#zones + 1] = { x = (i - 1) * tw, y = tb, w = tw, h = 32, on = function() set_active(i) end }
+    if not forced then
+      for i = 1, n do
+        zones[#zones + 1] = { x = (i - 1) * tw, y = tb, w = tw, h = 32, on = function() set_active(i) end }
+      end
     end
-    if surfaces[active].zones then
-      for _, z in ipairs(surfaces[active].zones(c)) do
+    local s = surfaces[active]
+    if s.zones and not (c.locked and s.restricted) then
+      for _, z in ipairs(s.zones(c)) do
         local on = z.on
         zones[#zones + 1] = { x = z.x, y = z.y, w = z.w, h = z.h, on = function() on(); dm.redraw() end }
       end
@@ -129,7 +153,21 @@ function M.run(app)
       if right then U.textr(W - 16, 13, right, th.text, 1) end
     end
 
-    surfaces[active].draw(c)
+    local s = surfaces[active]
+    if c.locked and s.restricted then
+      -- lockout overlay: the entertainment surface is unavailable in motion
+      U.rect(0, 40, W, H - 40, th.panel, 255)
+      U.textc(W / 2, math.floor(H / 2) - 44, "PULL OVER TO USE", th.alert, 3)
+      U.textc(W / 2, math.floor(H / 2) + 6, s.name .. " is disabled while the vehicle is moving",
+        th.dim, 1)
+      U.textc(W / 2, math.floor(H / 2) + 28, string.format("(%.0f km/h)", c.speed or 0), th.dim, 1)
+    else
+      s.draw(c)
+    end
+
+    -- a forced priority surface (rear camera on reverse) hides the tab bar so it
+    -- cannot be navigated away from.
+    if forced then return end
 
     local tb = H - 32
     U.rect(0, tb, W, 32, th.panel, 255)
