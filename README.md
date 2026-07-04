@@ -241,6 +241,11 @@ The framework itself has no dependency on any of these — it's a standalone GUI
 listed so you can see where it fits: a no-GPU renderer that scales from a microcontroller-class
 panel to a networked, RISC-V, real-time-audio rig, all from the same Lua scripts.
 
+**Beyond audio:** the same skeleton — a supervisor pinning a real-time loop, a shared-memory
+setpoint/telemetry bus, and a deterministic mesh transport — generalizes to vehicle autonomy
+(companion computer / ground station / telemetry mesh). What that would and wouldn't be — and the
+safety line — is written up in [`docs/vehicle-feasibility.md`](docs/vehicle-feasibility.md).
+
 ## Examples
 
 ```bash
