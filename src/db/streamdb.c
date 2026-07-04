@@ -97,7 +97,7 @@
         return (int)GetCurrentProcessId();
     }
 
-#elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
+#elif (defined(__unix__) || defined(__APPLE__) || defined(__linux__)) && !defined(__EMSCRIPTEN__)
     #define STREAMDB_POSIX 1
     #include <pthread.h>
     #include <unistd.h>

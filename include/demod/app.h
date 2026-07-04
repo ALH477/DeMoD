@@ -62,6 +62,23 @@ struct DmApp {
     int             mouse_x, mouse_y;   /* in framebuffer (logical) space */
     int             window_w, window_h; /* true native window size (>= fb when capped) */
     int             max_render_h;       /* resolved render-height cap (0 = none) */
+
+    /* Main-loop state persisted across dm_app_frame() calls. On native builds
+       these are set up once in dm_app_run and consumed by the while-loop's frame
+       limiter; on the Emscripten build the loop is driven one frame per
+       requestAnimationFrame callback (emscripten_set_main_loop_arg), so this
+       per-frame bookkeeping cannot live on dm_app_run's stack. Behaviour is
+       byte-identical to the old stack locals on native. */
+    Uint64          loop_freq;
+    Uint64          loop_last;
+    double          loop_target_dt;
+    const char     *loop_shot_path;
+    long            loop_shot_frame;
+    int             loop_shot_quit;
+    int             loop_shot_done;
+    int             loop_perf_on;
+    double          loop_perf_fill, loop_perf_up, loop_perf_pres;
+    long            loop_perf_n;
 };
 
 /* ── Lifecycle ─────────────────────────────────────────────────────── */

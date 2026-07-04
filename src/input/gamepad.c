@@ -94,8 +94,12 @@ DmGamepad *dm_gamepad_create(void) {
         fprintf(stderr, "[DeMoD] gamepad: subsystem unavailable (%s)\n", SDL_GetError());
         return NULL;
     }
+#ifndef __EMSCRIPTEN__
+    /* No filesystem-backed mapping file in the browser build (MEMFS only; the
+       Gamepad API supplies mappings). Native/desktop reads the env-pointed file. */
     const char *cfg = getenv("SDL_GAMECONTROLLERCONFIG_FILE");
     if (cfg && *cfg) SDL_GameControllerAddMappingsFromFile(cfg);
+#endif
 
     DmGamepad *gp = (DmGamepad *)calloc(1, sizeof(*gp));
     if (!gp) {

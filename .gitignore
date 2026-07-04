@@ -26,3 +26,8 @@ audio-stack/bridge/demod-remote-bridge
 audio-stack/bridge/test/stub_engine
 audio-stack/bridge/test/*.log
 audio-stack/bridge/test/*.sock
+
+# WASM build outputs (regenerated; served from build-wasm/)
+web/demod-ui.js
+web/demod-ui.wasm
+web/demod-ui.data

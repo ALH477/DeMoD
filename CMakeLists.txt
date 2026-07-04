@@ -17,6 +17,87 @@ project(demod-ui C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# ── Emscripten / WebAssembly build ──────────────────────────────────────────
+# Additive branch: builds the *real* C/SDL2/Lua UI to WASM so it runs on a
+# <canvas> in a browser. Entirely gated on EMSCRIPTEN (set by emcmake), so the
+# native find_package(SDL2/Lua) path below is byte-unchanged off Emscripten.
+#   emcmake cmake -S . -B build-wasm && cmake --build build-wasm
+# Produces build-wasm/demod-ui.{js,wasm,data}. No DCF (phase B), no pthreads.
+if(EMSCRIPTEN)
+  include(FetchContent)
+
+  # Lua 5.4.7 from source — Emscripten ships no Lua. Build the library .c files
+  # (excluding the lua.c / luac.c CLI drivers) into a static lib.
+  FetchContent_Declare(lua_upstream
+    URL      https://www.lua.org/ftp/lua-5.4.7.tar.gz
+    URL_HASH SHA256=9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30
+  )
+  FetchContent_MakeAvailable(lua_upstream)
+  set(LUA_SRC_DIR ${lua_upstream_SOURCE_DIR}/src)
+  set(LUA_LIB_C
+    lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes
+    lparser lstate lstring ltable ltm lundump lvm lzio
+    lauxlib lbaselib lcorolib ldblib liolib lmathlib loadlib loslib lstrlib
+    ltablib lutf8lib linit)
+  set(LUA_SOURCES "")
+  foreach(u ${LUA_LIB_C})
+    list(APPEND LUA_SOURCES ${LUA_SRC_DIR}/${u}.c)
+  endforeach()
+  add_library(demod_lua STATIC ${LUA_SOURCES})
+  target_include_directories(demod_lua PUBLIC ${LUA_SRC_DIR})
+
+  # demod sources: CORE + the (stubbed-off-platform) IPC/input + crypto +
+  # streamdb. No dm_dcf.c (phase B). streamdb runs its inline-flush no-thread
+  # path (also selected by the __EMSCRIPTEN__ guard in streamdb.c).
+  set(WASM_SOURCES
+    src/core/framebuffer.c
+    src/core/font.c
+    src/widgets/widgets.c
+    src/widgets/dsp_widgets.c
+    src/lua/lua_bindings.c
+    src/app/app.c
+    src/main.c
+    src/dsl/system_dsl.c
+    src/dsl/control_dsl.c
+    src/crypto/monocypher.c
+    src/crypto/monocypher-ed25519.c
+    src/db/streamdb.c
+    src/input/gamepad.c
+    src/ipc/demod_control.c
+    src/ipc/demod_params.c
+    src/ipc/demod_rt_meters.c
+    src/input/midi_input.c
+    src/input/serial_encoder.c
+  )
+
+  add_executable(demod-ui ${WASM_SOURCES})
+  target_include_directories(demod-ui PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/crypto
+    ${CMAKE_SOURCE_DIR}/src/db
+    ${LUA_SRC_DIR}
+  )
+  target_compile_definitions(demod-ui PRIVATE STREAMDB_NO_THREADS)
+  # -sUSE_SDL=2 in CFLAGS so <SDL2/SDL.h> resolves from the emscripten port.
+  target_compile_options(demod-ui PRIVATE "SHELL:-sUSE_SDL=2")
+  target_link_libraries(demod-ui PRIVATE demod_lua)
+
+  # The dsp_studio example is preloaded into MEMFS as main.lua (main.c's default
+  # entry when no argv is given, which is the case in the browser).
+  target_link_options(demod-ui PRIVATE
+    "SHELL:-sUSE_SDL=2"
+    "SHELL:-sALLOW_MEMORY_GROWTH=1"
+    "SHELL:-sEXIT_RUNTIME=0"
+    "SHELL:-sEXPORTED_RUNTIME_METHODS=['callMain','FS']"
+    "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/examples/dsp_studio.lua@main.lua"
+  )
+  # Emit demod-ui.js (+ .wasm + .data), not an .html shell (web/index.html hosts).
+  set_target_properties(demod-ui PROPERTIES OUTPUT_NAME demod-ui SUFFIX ".js")
+
+  return()  # Skip the native find_package path entirely on Emscripten.
+endif()
+
 # ── Options ────────────────────────────────────────────────────────────────
 # DEMOD_CLIENT: build as a remote GUI client. Defaults ON off-Linux (where there
 # is no local engine to talk to) and OFF on Linux (the device/desktop can host

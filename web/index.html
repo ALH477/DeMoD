@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     DeMoD UI Framework — WebAssembly host page.
+     Runs the real C/SDL2/Lua UI on a <canvas>. Self-contained (no CDN).
+     Serve this directory over HTTP (see README.md) — file:// will not load .wasm. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DeMoD UI — WebAssembly</title>
+  <style>
+    :root { --phosphor: #00f5d4; --bg: #0a0a0f; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: var(--bg); color: #e8e8f0;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      overflow: hidden;
+    }
+    #stage {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; width: 100%; height: 100%;
+      /* faint scanline wash, matching the phosphor-on-CRT identity */
+      background:
+        radial-gradient(ellipse at center, #0d0d16 0%, #060608 100%);
+    }
+    #canvas {
+      background: var(--bg);
+      border: 1px solid rgba(0, 245, 212, 0.25);
+      box-shadow: 0 0 40px rgba(0, 245, 212, 0.08);
+      image-rendering: pixelated;      /* crisp software-rendered pixels */
+      /* Explicit CSS size is REQUIRED: emscripten's SDL2 port derives the SDL
+         window / drawing-buffer size from the canvas element's CSS box at
+         window-creation time. Leaving it unsized makes SDL create a ~3x3
+         window. The adaptive UI reflows to whatever size it ends up at, so it
+         is fine for this to scale down (max-width/height) on smaller viewports. */
+      width: 1280px; height: 720px;
+      max-width: 100vw; max-height: 100vh;
+      outline: none;                   /* focus ring handled by border glow */
+    }
+    #canvas:focus { border-color: rgba(0, 245, 212, 0.6); }
+    #status {
+      position: fixed; left: 8px; bottom: 6px;
+      font-size: 12px; color: rgba(0, 245, 212, 0.55);
+      letter-spacing: 0.04em; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="canvas" width="1280" height="720" tabindex="0"
+            oncontextmenu="event.preventDefault()"></canvas>
+  </div>
+  <div id="status">booting demod-ui.wasm…</div>
+
+  <script type="text/javascript">
+    var statusEl = document.getElementById('status');
+    var canvasEl = document.getElementById('canvas');
+    // Grab keyboard focus so arrows/enter reach SDL immediately.
+    window.addEventListener('load', function () { canvasEl.focus(); });
+    canvasEl.addEventListener('click', function () { canvasEl.focus(); });
+
+    var Module = {
+      canvas: canvasEl,
+      // No argv in the browser: main.c defaults lua_entry to "main.lua", which is
+      // the dsp_studio example preloaded into MEMFS by --preload-file.
+      arguments: [],
+      print:    function (t) { console.log(t); },
+      printErr: function (t) { console.error(t); },
+      setStatus: function (t) {
+        if (statusEl) statusEl.textContent = t || 'running';
+      },
+      onRuntimeInitialized: function () {
+        if (statusEl) statusEl.textContent = 'demod-ui running';
+      }
+    };
+  </script>
+  <!-- Emscripten glue. Copy demod-ui.{js,wasm,data} next to this file, or serve
+       build-wasm/ and change this src to ../build-wasm/demod-ui.js -->
+  <script async type="text/javascript" src="demod-ui.js"></script>
+</body>
+</html>

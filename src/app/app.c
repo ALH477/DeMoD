@@ -14,6 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>  /* emscripten_set_main_loop_arg — browser rAF driver */
+#endif
 
 /* Monotonic milliseconds (for the DEMOD_PERF frame-time probe) now comes from
  * platform/compat.h so the same code builds on Linux/macOS/Windows. */
@@ -401,34 +404,20 @@ void dm_app_destroy(DmApp *app) {
 
 /* ── Main Loop ─────────────────────────────────────────────────────── */
 
-int dm_app_run(DmApp *app) {
-    Uint64 freq = SDL_GetPerformanceFrequency();
-    Uint64 last = SDL_GetPerformanceCounter();
-    double target_dt = 1.0 / app->config.target_fps;
+/* One iteration of the main loop (everything except the trailing frame
+   limiter). Factored out so the Emscripten build can hand it to
+   emscripten_set_main_loop_arg (one call per requestAnimationFrame). arg is the
+   DmApp*. All per-frame state lives on app->loop_* so it survives across calls;
+   native behaviour is byte-identical to the old inline loop body. */
+static void dm_app_frame(void *arg) {
+    DmApp *app = (DmApp *)arg;
+    Uint64 freq = app->loop_freq;
 
-    /* Headless screenshot: DEMOD_SHOT=<path> dumps the framebuffer as a PPM on
-       frame DEMOD_SHOT_FRAME (default 90, ~1.5 s so animation/count-in settles)
-       and then quits unless DEMOD_SHOT_QUIT=0. Inert when DEMOD_SHOT is unset. */
-    const char *shot_path  = getenv("DEMOD_SHOT");
-    const char *shot_fr_e  = getenv("DEMOD_SHOT_FRAME");
-    const char *shot_qt_e  = getenv("DEMOD_SHOT_QUIT");
-    long shot_frame = (shot_fr_e && *shot_fr_e) ? atol(shot_fr_e) : 90;
-    int  shot_quit  = !(shot_qt_e && shot_qt_e[0] == '0' && shot_qt_e[1] == '\0');
-    int  shot_done  = 0;
-
-    /* Frame-time probe: DEMOD_PERF=1 logs a rolling average of the render cost,
-       split into fill (software rasterize) / upload (fb->texture) / present (GPU
-       blit+swap), to decide whether the software path is the bottleneck. */
-    const char *perf_env = getenv("DEMOD_PERF");
-    int    perf_on = (perf_env && perf_env[0] && !(perf_env[0] == '0' && perf_env[1] == '\0'));
-    double perf_fill = 0, perf_up = 0, perf_pres = 0;
-    long   perf_n = 0;
-
-    while (app->running) {
+    {
         /* Timing */
         Uint64 now = SDL_GetPerformanceCounter();
-        app->dt   = (double)(now - last) / (double)freq;
-        last      = now;
+        app->dt   = (double)(now - app->loop_last) / (double)freq;
+        app->loop_last = now;
         app->time += app->dt;
         app->frame_count++;
 
@@ -513,12 +502,13 @@ int dm_app_run(DmApp *app) {
         }
 
         /* Force a fresh frame on the capture frame so the dump is current. */
-        int do_shot = (shot_path && !shot_done && (long)app->frame_count >= shot_frame);
+        int do_shot = (app->loop_shot_path && !app->loop_shot_done &&
+                       (long)app->frame_count >= app->loop_shot_frame);
         if (do_shot) app->needs_redraw = true;
 
         /* Render */
         if (app->needs_redraw) {
-            double pt0 = perf_on ? dm_now_ms() : 0.0;
+            double pt0 = app->loop_perf_on ? dm_now_ms() : 0.0;
             dm_fb_clear(app->fb, app->theme->bg);
 
             /* Layout pass */
@@ -539,7 +529,7 @@ int dm_app_run(DmApp *app) {
             } else {
                 lua_pop(app->L, 1);
             }
-            double pt1 = perf_on ? dm_now_ms() : 0.0;
+            double pt1 = app->loop_perf_on ? dm_now_ms() : 0.0;
 
             /* Present framebuffer to SDL texture */
             void *tex_pixels;
@@ -551,24 +541,26 @@ int dm_app_run(DmApp *app) {
                        app->fb->width * sizeof(uint32_t));
             }
             SDL_UnlockTexture(app->texture);
-            double pt2 = perf_on ? dm_now_ms() : 0.0;
+            double pt2 = app->loop_perf_on ? dm_now_ms() : 0.0;
 
             SDL_RenderClear(app->renderer);
             SDL_RenderCopy(app->renderer, app->texture, NULL, NULL);
             SDL_RenderPresent(app->renderer);
-            double pt3 = perf_on ? dm_now_ms() : 0.0;
+            double pt3 = app->loop_perf_on ? dm_now_ms() : 0.0;
 
-            if (perf_on) {
-                perf_fill += pt1 - pt0;
-                perf_up   += pt2 - pt1;
-                perf_pres += pt3 - pt2;
-                if (++perf_n >= 60) {
+            if (app->loop_perf_on) {
+                app->loop_perf_fill += pt1 - pt0;
+                app->loop_perf_up   += pt2 - pt1;
+                app->loop_perf_pres += pt3 - pt2;
+                if (++app->loop_perf_n >= 60) {
                     fprintf(stderr,
                         "[DeMoD] perf %dx%d  fill=%.2fms  upload=%.2fms  present=%.2fms  (avg of %ld redraws)\n",
                         app->fb->width, app->fb->height,
-                        perf_fill / perf_n, perf_up / perf_n, perf_pres / perf_n, perf_n);
-                    perf_fill = perf_up = perf_pres = 0;
-                    perf_n = 0;
+                        app->loop_perf_fill / app->loop_perf_n,
+                        app->loop_perf_up / app->loop_perf_n,
+                        app->loop_perf_pres / app->loop_perf_n, app->loop_perf_n);
+                    app->loop_perf_fill = app->loop_perf_up = app->loop_perf_pres = 0;
+                    app->loop_perf_n = 0;
                 }
             }
 
@@ -577,21 +569,60 @@ int dm_app_run(DmApp *app) {
 
         /* Capture the just-rendered framebuffer, then optionally quit. */
         if (do_shot) {
-            dm_fb_write_ppm(app->fb, shot_path);
-            shot_done = 1;
+            dm_fb_write_ppm(app->fb, app->loop_shot_path);
+            app->loop_shot_done = 1;
             fprintf(stderr, "[DeMoD] screenshot -> %s (%dx%d, frame %ld)\n",
-                    shot_path, app->fb->width, app->fb->height, (long)app->frame_count);
-            if (shot_quit) app->running = false;
+                    app->loop_shot_path, app->fb->width, app->fb->height,
+                    (long)app->frame_count);
+            if (app->loop_shot_quit) app->running = false;
         }
+    }
+}
 
-        /* Frame rate limiting */
-        double elapsed = (double)(SDL_GetPerformanceCounter() - now) / (double)freq;
-        if (elapsed < target_dt) {
-            SDL_Delay((Uint32)((target_dt - elapsed) * 1000.0));
+int dm_app_run(DmApp *app) {
+    app->loop_freq      = SDL_GetPerformanceFrequency();
+    app->loop_last      = SDL_GetPerformanceCounter();
+    app->loop_target_dt = 1.0 / app->config.target_fps;
+
+    /* Headless screenshot: DEMOD_SHOT=<path> dumps the framebuffer as a PPM on
+       frame DEMOD_SHOT_FRAME (default 90, ~1.5 s so animation/count-in settles)
+       and then quits unless DEMOD_SHOT_QUIT=0. Inert when DEMOD_SHOT is unset. */
+    const char *shot_fr_e  = getenv("DEMOD_SHOT_FRAME");
+    const char *shot_qt_e  = getenv("DEMOD_SHOT_QUIT");
+    app->loop_shot_path  = getenv("DEMOD_SHOT");
+    app->loop_shot_frame = (shot_fr_e && *shot_fr_e) ? atol(shot_fr_e) : 90;
+    app->loop_shot_quit  = !(shot_qt_e && shot_qt_e[0] == '0' && shot_qt_e[1] == '\0');
+    app->loop_shot_done  = 0;
+
+    /* Frame-time probe: DEMOD_PERF=1 logs a rolling average of the render cost,
+       split into fill (software rasterize) / upload (fb->texture) / present (GPU
+       blit+swap), to decide whether the software path is the bottleneck. */
+    const char *perf_env = getenv("DEMOD_PERF");
+    app->loop_perf_on = (perf_env && perf_env[0] && !(perf_env[0] == '0' && perf_env[1] == '\0'));
+    app->loop_perf_fill = app->loop_perf_up = app->loop_perf_pres = 0;
+    app->loop_perf_n = 0;
+
+#ifdef __EMSCRIPTEN__
+    /* Browser: hand the loop to requestAnimationFrame (fps 0 = rAF cadence) and
+       simulate an infinite loop (1) so the runtime keeps the stack alive. There
+       is no frame limiter — rAF paces us — and no teardown (the tab owns it). */
+    emscripten_set_main_loop_arg(dm_app_frame, app, 0, 1);
+    return 0;
+#else
+    while (app->running) {
+        dm_app_frame(app);
+
+        /* Frame rate limiting. dm_app_frame stamped app->loop_last with this
+           frame's start, so measure the work done and sleep the remainder. */
+        double elapsed = (double)(SDL_GetPerformanceCounter() - app->loop_last) /
+                         (double)app->loop_freq;
+        if (elapsed < app->loop_target_dt) {
+            SDL_Delay((Uint32)((app->loop_target_dt - elapsed) * 1000.0));
         }
     }
 
     return 0;
+#endif
 }
 
 /* ── Utility ───────────────────────────────────────────────────────── */
