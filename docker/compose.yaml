@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# Soft-RT dev appliance for the DeMoD / Quanta stack.
+# Brings up: JACK (dummy) → demod-orchestrator → demod-rt engine, the DCF
+# bridges (UDP + WebSocket), the DCF-Audio → HLS live monitor, a WASM UI static
+# server, and a host-playable WAV render path. Read docker/README.md first —
+# this is NOT a latency tool.
+#
+# Profiles (docker compose --profile <name> up --build):
+#   (default)   demod-dev   full engine + HLS monitor + UI (needs caps/ulimits)
+#   quanta      quanta      codec CLIs + WASM UI only, no engine, no caps
+#   hls         hls         jackd + DCF-Audio HLS monitor + UI (no orchestrator)
+#   linux-jack  linux-jack  full engine, sharing the HOST JACK/PipeWire socket
+#
+# Usage:
+#   docker compose -f docker/compose.yaml up --build
+#   docker compose -f docker/compose.yaml --profile quanta up --build
+#   docker compose -f docker/compose.yaml exec demod-dev \
+#       /work/docker/entrypoint.sh render path/to/in.wav   # → ./out/out.wav
+
+x-demod-base: &base
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+  image: demod-dev:latest
+  init: true
+  # The Nix-built binaries + GHC RTS + jackd's audio buffer mlock all need a real
+  # memory ceiling. Docker Desktop's default cgroup limit is far below host RAM
+  # and causes SIGBUS during init.
+  mem_limit: 8g
+  memswap_limit: 12g
+  # jackd + the orchestrator's IPC regions live in /dev/shm; Docker's 64 MB default
+  # is too small and SIGBUSes them on init. Give them room.
+  shm_size: "512m"
+  ports:
+    - "8080:8080"          # WASM UI + HLS monitor (HTTP)
+    - "7000:7000"          # dcf-ws-bridge (WebSocket relay for the browser)
+    - "47000:47000/udp"    # DCF mesh (native demod-ui-dcf target on the host)
+  volumes:
+    - ./out:/out           # host-playable WAV renders land here
+    # NOTE: do NOT bind-mount `..:/work` here — the image bakes the built binaries
+    # (result-*/), the WASM UI (web/), and the health probe into /work, and a mount
+    # would shadow them and disable the engine + UI. For live dev, use `nix develop`
+    # or the `shell` command, or add a read-only mount at a different path.
+  labels:
+    org.demod.devcontainer.kind: "soft-rt-dev"
+    org.demod.devcontainer.warning: "NOT representative of real hardware — dev-only"
+
+# Engine stack needs SYS_NICE (SCHED_FIFO, sched_setaffinity) + IPC_LOCK
+# (mlockall) or the orchestrator hard-exits 200–203 (Supervisor.hs). memlock=-1
+# unlimits RLIMIT_MEMLOCK so audio-path pages can stay resident.
+x-rt-privs: &rt-privs
+  cap_add:
+    - SYS_NICE
+    - IPC_LOCK
+  ulimits:
+    rtprio: 95
+    memlock: -1
+
+x-env: &env
+  JACK_PERIOD: ${JACK_PERIOD:-1024}
+  DEMOD_DCF_PORT: ${DEMOD_DCF_PORT:-47000}
+  DEMOD_DCF_BIND: 0.0.0.0
+  DEMOD_CONTROL_SOCK: /run/demod/control.sock
+  DEMOD_RT_METERS_SHM: /dev/shm/demod-rt-meters
+  HTTP_PORT: 8080
+  WS_PORT: 7000
+  OUT: /out
+  RT_CORE: ${RT_CORE:-0}   # 0 (not the orchestrator default 4) on small CPU sets
+
+services:
+  # ── default: full soft-RT appliance (engine + HLS monitor + UI) ──────────────
+  demod-dev:
+    <<: [*base, *rt-privs]
+    container_name: demod-dev
+    command: ["serve"]
+    environment: *env
+
+  # ── quanta: codec CLIs + WASM UI, no engine (no caps/ulimits required) ───────
+  quanta:
+    <<: *base
+    container_name: demod-quanta
+    profiles: ["quanta"]
+    command: ["quanta-only"]
+    environment: *env
+
+  # ── hls: DCF-Audio → HLS monitor demo (jackd + caster, no orchestrator) ──────
+  hls:
+    <<: [*base, *rt-privs]
+    container_name: demod-hls
+    profiles: ["hls"]
+    command: ["stream"]
+    environment: *env
+
+  # ── linux-jack: full engine, sharing the HOST audio socket for low latency ───
+  # Linux hosts only. Shares the host PipeWire/JACK socket so the engine feeds
+  # real speakers instead of the dummy backend. Adjust the socket path to your
+  # host (PipeWire: /run/user/$UID; bare JACK: /dev/shm + /tmp/jack-*).
+  linux-jack:
+    <<: [*base, *rt-privs]
+    container_name: demod-linux-jack
+    profiles: ["linux-jack"]
+    command: ["serve"]
+    environment:
+      <<: *env
+      JACK_DEFAULT_SERVER: default
+    volumes:
+      - ./out:/out
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}/pipewire-0:/run/pipewire-0
+      - /tmp:/tmp

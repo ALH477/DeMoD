@@ -24,6 +24,7 @@
 #include "hydramesh/demod_audio.h"
 #include "demod_rt_meters.h"
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -212,16 +213,26 @@ int main(void) {
 
     const char *pe = getenv("DEMOD_DCF_PORT");
     int port = (pe && *pe) ? atoi(pe) : DCF_DEFAULT_PORT;
+    /* Bind address is env-overridable so containers can expose the mesh on
+     * 0.0.0.0 without changing the loopback default used by tests + local
+     * deployments. Defaults to 127.0.0.1 for backward compatibility. */
+    const char *be = getenv("DEMOD_DCF_BIND");
+    const char *bind_ip = (be && *be) ? be : "127.0.0.1";
+    struct in_addr ba;
+    if (!inet_aton(bind_ip, &ba)) {
+        fprintf(stderr, "[bridge] invalid DEMOD_DCF_BIND='%s'\n", bind_ip);
+        return 1;
+    }
 
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) { perror("socket"); return 1; }
     struct sockaddr_in me;
     memset(&me, 0, sizeof(me));
     me.sin_family = AF_INET;
-    me.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    me.sin_addr.s_addr = ba.s_addr;
     me.sin_port = htons((uint16_t)port);
     if (bind(sock, (struct sockaddr *)&me, sizeof(me)) != 0) { perror("bind"); return 1; }
-    fprintf(stderr, "[bridge] listening udp 127.0.0.1:%d\n", port);
+    fprintf(stderr, "[bridge] listening udp %s:%d\n", bind_ip, port);
 
     dcf_text_reasm_t reasm;
     dcf_text_reasm_init(&reasm);

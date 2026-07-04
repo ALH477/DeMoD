@@ -38,3 +38,7 @@ web/demod-ui.data
 # clangd compile database + cache
 compile_commands.json
 .cache/
+
+# bridge build artifacts (Makefile targets)
+audio-stack/bridge/demod-remote-bridge
+audio-stack/bridge/demod-dcf-audiocast

@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# .dockerignore — keep the build context lean for the dev image.
+# We exclude things that are either huge (git history, emscripten cache),
+# regenerable (cmake build dirs, nix result links), or local cruft (editor
+# caches, the out/ render volume). The remaining flake + source gets copied
+# into /work and built via the pinned nixpkgs.
+
+# VCS / metadata
+.git
+.gitignore
+.gitattributes
+
+# Build outputs of every flavor — they get rebuilt inside the image
+build-cmake/
+build-wasm/
+result
+result-*
+out/
+.emcache/
+compile_commands.json
+
+# Editor / IDE cruft
+.vscode/
+.idea/
+.cache/
+**/*~
+**/.*.swp
+**/#*#
+**/.DS_Store
+
+# Compose output volume (we mount it explicitly at /out)
+docker/out/
+
+# Local docker build artifacts (avoid recursive context)
+docker/DeMoD.tmp
+docker/.dockerignore.local
+
+# Python / nix caches
+__pycache__/
+*.pyc
+.direnv/
+.envrc
+
+# Pre-built UI artifacts that the image rebuilds anyway (the docker/DeMoD
+# runs pages.yml-style emcmake and cp's into web/ itself)
+web/demod-ui.js
+web/demod-ui.wasm
+web/demod-ui.data
+
+# Large vendored objects that aren't used by the dev appliance's build
+unifont_all.hex

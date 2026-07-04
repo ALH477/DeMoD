@@ -10,9 +10,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
+    # HydraMesh provides the DCF-Audio serve/decode tooling (patched ffmpeg with a
+    # `dcf` demuxer + the dcf-radio HLS server) that the slim runtime image bakes in
+    # to play the engine's DCF-Audio monitor stream in a browser. Its own nixpkgs is
+    # left unpinned-to-ours on purpose (different input graph); the closure is cached.
+    hydramesh.url = "github:ALH477/HydraMesh";
   };
 
-  outputs = { self, nixpkgs, flake-utils, nix-appimage }:
+  outputs = { self, nixpkgs, flake-utils, nix-appimage, hydramesh }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -132,6 +137,31 @@
           };
         };
 
+        # demod-dcf-audiocast: JACK client that casts the engine's output over the
+        # DCF-Audio wire (Opus/24k, codec_id 0) — the capture/encode half of the
+        # HLS live-monitor path. Pipe its stdout into dcf-ffmpeg to serve HLS.
+        # Audio-stack code (GPLv3-only OR commercial); links libjack + libopus.
+        demod-dcf-audiocast = pkgs.stdenv.mkDerivation {
+          pname = "demod-dcf-audiocast";
+          version = "0.1.0";
+          src = ./.;
+          nativeBuildInputs = with pkgs; [ pkg-config ];
+          buildInputs = with pkgs; [ jack2 libopus ];
+          buildPhase = ''
+            make -C audio-stack/bridge demod-dcf-audiocast CC=${pkgs.stdenv.cc}/bin/cc
+          '';
+          installPhase = ''
+            mkdir -p $out/bin
+            cp audio-stack/bridge/demod-dcf-audiocast $out/bin/
+          '';
+          meta = {
+            description = "Cast the DeMoD engine's JACK output over the DCF-Audio wire (Opus/HLS monitor)";
+            license = pkgs.lib.licenses.gpl3Only;
+            platforms = pkgs.lib.platforms.linux;
+            mainProgram = "demod-dcf-audiocast";
+          };
+        };
+
         # dcf-ws-bridge: stateless WebSocket<->UDP relay so the browser (WASM)
         # client can join the plaintext DCF mesh. Vendored LGPL crate (web/bridge,
         # from HydraMesh); it shuttles opaque datagrams and never parses a frame.
@@ -149,11 +179,84 @@
           };
         };
 
+        # ── Slim runtime container image (dockerTools) ───────────────
+        # A distributable image with ONLY the runtime closures — the engine, the
+        # orchestrator, both DCF bridges, the DCF-Audio caster, the Quanta CLIs, the
+        # DCF-Audio HLS server (HydraMesh dcf-ffmpeg), jackd, python3 and tini — plus
+        # the *prebuilt* WASM UI from ./web (the browser build is impure — emscripten's
+        # SDL2 port needs network — so it is not rebuilt here; the fat dev image in
+        # docker/Dockerfile rebuilds it). No toolchain, no Nix store, no source tree.
+        #   nix build .#docker-runtime && docker load < result
+        # Same soft-RT caveats as the dev image — run with the caps in docker/README.md.
+        dcf-ffmpeg = hydramesh.packages.${system}.dcf-ffmpeg;
+        dcf-radio  = hydramesh.packages.${system}.dcf-radio;
+
+        ociLabels = {
+          "org.opencontainers.image.title"       = "DeMoD runtime";
+          "org.opencontainers.image.description" =
+            "Soft-real-time DeMoD audio engine + Quanta codec + WASM UI + HydraMesh DCF-Audio HLS monitor. DEV/soft-RT only — not representative of real hardware.";
+          "org.opencontainers.image.source"      = "https://github.com/ALH477/DeMoD";
+          "org.opencontainers.image.licenses"    = "MPL-2.0 AND GPL-3.0-only AND LGPL-3.0-only";
+          "org.opencontainers.image.version"     = "0.1.0";
+          "com.demod.soft-rt"                    = "true";
+        };
+
+        docker-runtime =
+          let
+            runtimeEnv = pkgs.buildEnv {
+              name = "demod-runtime-env";
+              paths = with pkgs; [
+                quanta demod-rt demod-orchestrator demod-remote-bridge
+                dcf-ws-bridge demod-dcf-audiocast dcf-ffmpeg
+                jack2 (python3.withPackages (ps: [ ps.numpy ]))
+                tini bashInteractive coreutils curl gnused gawk gnugrep procps
+              ];
+            };
+            # Prebuilt browser UI (see note above) staged read-only in the image.
+            webSrc = pkgs.runCommand "demod-web" { } ''
+              mkdir -p $out/share/demod-web
+              cp -r ${./web}/. $out/share/demod-web/
+            '';
+            entrypoint = pkgs.runCommand "demod-entrypoint" { } ''
+              install -Dm755 ${./docker/entrypoint.sh} $out/entrypoint.sh
+              # bake the stdlib health probe so wait_for_rt works without the repo.
+              install -Dm755 ${./audio-stack/bridge/test/control_probe.py} \
+                $out/share/demod/control_probe.py
+            '';
+          in pkgs.dockerTools.buildLayeredImage {
+            name = "demod-runtime";
+            tag  = "latest";
+            contents = [ runtimeEnv webSrc entrypoint ];
+            config = {
+              # Invoke bash explicitly — the slim image has no /usr/bin/env for the
+              # script's shebang to resolve.
+              Entrypoint = [ "${pkgs.tini}/bin/tini" "--"
+                             "${pkgs.bashInteractive}/bin/bash" "/entrypoint.sh" ];
+              Cmd = [ "serve" ];
+              WorkingDir = "/work";
+              Env = [
+                "PATH=/bin"
+                "DEMOD_SLIM=1"
+                "DEMOD_PROBE=/share/demod/control_probe.py"
+                "DEMOD_WEB_SRC=/share/demod-web"
+                "DEMOD_CONTROL_SOCK=/run/demod/control.sock"
+                "DEMOD_DCF_PORT=47000"
+                "JACK_PERIOD=1024"
+                "HTTP_PORT=8080"
+                "WS_PORT=7000"
+                "OUT=/out"
+              ];
+              ExposedPorts = { "8080/tcp" = { }; "7000/tcp" = { }; "47000/udp" = { }; };
+              Labels = ociLabels;
+            };
+          };
+
       in {
         packages = {
           default = demod-ui;
           inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf
-                  demod-remote-bridge dcf-ws-bridge quanta;
+                  demod-remote-bridge dcf-ws-bridge quanta
+                  demod-dcf-audiocast dcf-ffmpeg dcf-radio docker-runtime;
 
           # Portable single-file build of the framework (bundles the nix closure).
           appimage = nix-appimage.lib.${system}.mkAppImage {
