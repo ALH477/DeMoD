@@ -1,8 +1,56 @@
 cff-version: 1.2.0
-title: "DeMoD — real-time audio platform (GUI framework + RT engine)"
-message: "If you use this software, please cite it."
+message: "If you use DeMoD, please cite it."
+title: "DeMoD: a no-GPU software-rendered GUI framework with a deterministic real-time audio stack and an analysis-to-synthesis codec"
+abstract: >-
+  A real-time audio platform built around a pure-C11, software-rendered SDL2/Lua GUI
+  framework (an ARGB8888 framebuffer drawn scanline-by-scanline, no GPU) plus everything
+  built on it: a deterministic C real-time audio engine and a Haskell orchestrator
+  (separate programs over a socket + shared-memory IPC), an optional split over UDP via the
+  DCF / HydraMesh mesh protocol, and DeMoD Quanta — an analysis-to-synthesis codec whose
+  Mallat–Zhang matching-pursuit analyzer freezes an acoustic-quanta score into a pure static
+  Faust program (the decoder is a .dsp), verified to null against the C reference player.
 type: software
-authors:
-  - name: "DeMoD LLC"
-repository-code: "https://github.com/ALH477/DeMoD"
+version: "0.1.0"
 license: MPL-2.0
+repository-code: "https://github.com/ALH477/DeMoD"
+# DOI is assigned by Zenodo on first archive; paste it back here as `doi:` and in `identifiers`.
+# doi: 10.5281/zenodo.XXXXXXX
+authors:
+  - given-names: Asher
+    family-names: LeRoy
+    affiliation: "DeMoD LLC"
+    email: demodllc@gmail.com
+    orcid: "https://orcid.org/0009-0006-5842-4975"
+  - name: "DeMoD LLC"
+keywords:
+  - software rendering
+  - framebuffer
+  - GUI framework
+  - C11
+  - Lua
+  - SDL2
+  - real-time audio
+  - DSP
+  - Faust
+  - matching pursuit
+  - analysis-to-synthesis
+  - mesh networking
+  - DCF
+  - HydraMesh
+  - RISC-V
+  - embedded
+references:
+  - type: article
+    title: "Matching pursuits with time-frequency dictionaries"
+    authors:
+      - given-names: "Stéphane G."
+        family-names: Mallat
+      - given-names: Zhifeng
+        family-names: Zhang
+    year: 1993
+    journal: "IEEE Transactions on Signal Processing"
+    volume: 41
+    issue: 12
+    start: 3397
+    end: 3415
+    doi: 10.1109/78.258082
