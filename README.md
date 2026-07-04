@@ -37,7 +37,8 @@ If you have ever wanted to write a real interface the way you write a demo, this
 ```
 
 `./dev` is a zero-dep CLI (`run` / `shot` / `test` / `check` / `build` / `fmt`); full dev loop in
-[`DEVELOPING.md`](DEVELOPING.md). Prefer it raw?
+[`DEVELOPING.md`](DEVELOPING.md), and [`AGENTS.md`](AGENTS.md) orients contributors & AI agents.
+Prefer it raw?
 
 ```bash
 nix develop          # drop into the dev shell (SDL2, Lua, toolchain)

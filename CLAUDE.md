@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Start with [`AGENTS.md`](AGENTS.md)** — the cross-agent orientation (golden `./dev` commands, the
+> shell/app family, licensing & reserved-trade-dress boundaries, safety constraints, and the gotchas).
+> This file goes deeper on the C framework internals. Note: the "Visual identity" palette below is the
+> **framework's** identity — the FOSS shell apps (`auto`/`dash`/`gcs`/`rov`) deliberately use their own
+> neutral looks (see AGENTS.md → Licensing & IP).
+
 ## What this is
 
 DeMoD UI is a pure software-rendered GUI framework written in C11. The framebuffer is a `uint32_t*` ARGB8888 pixel buffer; **all drawing is scanline-by-scanline in C** (`src/core/framebuffer.c`). There is no GPU path — no OpenGL, Vulkan, or shaders. SDL2 is used only for window creation, input, and blitting the final buffer to screen via a streaming texture. Applications are written in Lua against the `dm.*` API. The design target is embedded Linux panels, kiosks, and instruments — small displays with encoder/limited input — but the same scripts run unchanged on a desktop.
