@@ -1,0 +1,362 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+ * quanta-analyzer — hybrid Gabor matching pursuit, WAV -> QSC (spec §4)
+ * Copyright (c) 2026 DeMoD LLC.
+ *
+ * Offline tool: libm allowed here (spec §12 restricts the *audio path*).
+ * Determinism: fixed iteration order — scale-major frame scan, ties broken
+ * by lower scale, then lower frame index, then lower bin (§4.3).
+ */
+#include "../include/qsc.h"
+
+/* ---------- iterative radix-2 complex FFT (double) ---------- */
+static void fft(double *re, double *im, int n){
+    for (int i = 1, j = 0; i < n; i++){
+        int bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j |= bit;
+        if (i < j){ double t=re[i];re[i]=re[j];re[j]=t; t=im[i];im[i]=im[j];im[j]=t; }
+    }
+    for (int len = 2; len <= n; len <<= 1){
+        double ang = -2.0 * M_PI / len;
+        double wr = cos(ang), wi = sin(ang);
+        for (int i = 0; i < n; i += len){
+            double cr = 1.0, ci = 0.0;
+            for (int k = 0; k < len/2; k++){
+                int a = i + k, b = i + k + len/2;
+                double ur = re[a], ui = im[a];
+                double vr = re[b]*cr - im[b]*ci, vi = re[b]*ci + im[b]*cr;
+                re[a]=ur+vr; im[a]=ui+vi; re[b]=ur-vr; im[b]=ui-vi;
+                double ncr = cr*wr - ci*wi; ci = cr*wi + ci*wr; cr = ncr;
+            }
+        }
+    }
+}
+
+/* ---------- per-scale frame cache ---------- */
+typedef struct {
+    int    scale, hop, nframes;
+    double *win;          /* discrete synthesis window, table-sampled  */
+    double  e2;           /* sum win^2                                 */
+    double *best_score;   /* per frame: max |X_k|^2 / e2               */
+    int    *best_bin;
+    double *pa, *pb, *pc; /* |X| at bin-1, bin, bin+1 (parabolic)      */
+} ScaleCache;
+
+static double g_wtab[QSC_TAB], g_stab[QSC_TAB];
+
+static void frame_analyze(ScaleCache *sc, const double *r, uint64_t N, int f,
+                          double *re, double *im, int gated){
+    int s = sc->scale; uint32_t u = (uint32_t)f * sc->hop;
+    if (gated){ sc->best_score[f] = 0.0; sc->best_bin[f] = 0; return; }
+    for (int i = 0; i < s; i++){
+        double v = (u + (uint64_t)i < N) ? r[u+i] : 0.0;
+        re[i] = v * sc->win[i]; im[i] = 0.0;
+    }
+    fft(re, im, s);
+    double bm = 0.0; int bk = 1;
+    for (int k = 1; k < s/2; k++){
+        double m = re[k]*re[k] + im[k]*im[k];
+        if (m > bm){ bm = m; bk = k; }
+    }
+    sc->best_score[f] = bm / sc->e2;
+    sc->best_bin[f]   = bk;
+    int km = bk>1 ? bk-1 : 1, kp = bk<s/2-1 ? bk+1 : s/2-1;
+    sc->pa[f] = sqrt(re[km]*re[km]+im[km]*im[km]);
+    sc->pb[f] = sqrt(bm);
+    sc->pc[f] = sqrt(re[kp]*re[kp]+im[kp]*im[kp]);
+}
+
+/* ---------- onset detection: spectral flux, 1024/256 ---------- */
+static int detect_onsets(const double *x, uint64_t N, uint32_t sr,
+                         uint32_t **out){
+    const int W = 1024, H = 256;
+    int nf = N > (uint64_t)W ? (int)((N - W)/H) + 1 : 0;
+    if (nf < 3){ *out = NULL; return 0; }
+    double *re = malloc(sizeof(double)*W), *im = malloc(sizeof(double)*W);
+    double *pm = calloc(W/2, sizeof(double));
+    double *flux = calloc(nf, sizeof(double));
+    for (int f = 0; f < nf; f++){
+        for (int i = 0; i < W; i++){
+            double h = 0.5 - 0.5*cos(2.0*M_PI*i/(W-1));
+            re[i] = x[(uint64_t)f*H + i] * h; im[i] = 0.0;
+        }
+        fft(re, im, W);
+        double fl = 0.0;
+        for (int k = 1; k < W/2; k++){
+            double m = sqrt(re[k]*re[k]+im[k]*im[k]);
+            double d = m - pm[k]; if (d > 0) fl += d;
+            pm[k] = m;
+        }
+        flux[f] = fl;
+    }
+    double mu=0, sd=0;
+    for (int f=0; f<nf; f++) mu += flux[f]; mu /= nf;
+    for (int f=0; f<nf; f++){ double d=flux[f]-mu; sd += d*d; } sd = sqrt(sd/nf);
+    double thr = mu + 2.0*sd;
+    uint32_t *on = malloc(sizeof(uint32_t)*nf); int no = 0;
+    int gap = (int)(0.05*sr)/H;                       /* 50 ms min gap */
+    for (int f = 1; f < nf-1; f++)
+        if (flux[f] > thr && flux[f] >= flux[f-1] && flux[f] >= flux[f+1])
+            if (no == 0 || (int)f - (int)(on[no-1]/H) >= gap)
+                on[no++] = (uint32_t)f * H + W/2;
+    free(re);free(im);free(pm);free(flux);
+    *out = on; return no;
+}
+
+static int near_onset(uint32_t center, const uint32_t *on, int no, uint32_t win){
+    for (int i = 0; i < no; i++){
+        uint32_t d = center > on[i] ? center - on[i] : on[i] - center;
+        if (d <= win) return 1;
+    }
+    return 0;
+}
+
+/* ---------- voice assignment: greedy interval coloring (§4.7) ---------- */
+static int cmp_voice_onset(const void *a, const void *b){
+    const QscAtom *x=a, *y=b;
+    if (x->voice != y->voice) return x->voice < y->voice ? -1 : 1;
+    if (x->onset != y->onset) return x->onset < y->onset ? -1 : 1;
+    return 0;
+}
+
+int main(int argc, char **argv){
+    const char *inpath = NULL, *outpath = "score.qsc";
+    int Kmax = 2048; double snr_db = 35.0, floor_amp = 1e-4; uint32_t seed = 0xDEC0DE;
+    for (int i = 1; i < argc; i++){
+        if (!strcmp(argv[i], "-o") && i+1<argc) outpath = argv[++i];
+        else if (!strcmp(argv[i], "--k") && i+1<argc) Kmax = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--snr") && i+1<argc) snr_db = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--seed") && i+1<argc) seed = (uint32_t)strtoul(argv[++i],0,0);
+        else inpath = argv[i];
+    }
+    if (!inpath){ fprintf(stderr, "usage: quanta-analyzer in.wav [-o out.qsc] [--k N] [--snr dB]\n"); return 2; }
+
+    uint32_t sr; uint64_t N;
+    double *r = wav_read_mono(inpath, &sr, &N);
+    if (!r){ fprintf(stderr, "analyzer: cannot read %s\n", inpath); return 1; }
+    if (sr != 48000) fprintf(stderr, "analyzer: note: sr=%u (canonical is 48000; proceeding)\n", sr);
+
+    qsc_build_tables(g_wtab, g_stab);
+
+    double e_src = 0.0; for (uint64_t i=0;i<N;i++) e_src += r[i]*r[i];
+    double e_stop = e_src * pow(10.0, -snr_db/10.0);
+
+    uint32_t *onsets; int no = detect_onsets(r, N, sr, &onsets);
+    uint32_t ogate = (uint32_t)(0.020 * sr);             /* ±20 ms */
+
+    /* build per-scale caches */
+    ScaleCache sc[QSC_SCALES]; int maxs = QSC_SCALE_TAB[QSC_SCALES-1];
+    double *re = malloc(sizeof(double)*maxs), *im = malloc(sizeof(double)*maxs);
+    for (int si = 0; si < QSC_SCALES; si++){
+        int s = QSC_SCALE_TAB[si];
+        sc[si].scale = s; sc[si].hop = s/4;
+        sc[si].nframes = N > (uint64_t)s ? (int)((N - s)/sc[si].hop) + 1 : 0;
+        sc[si].win = malloc(sizeof(double)*s);
+        sc[si].e2 = 0.0;
+        for (int i = 0; i < s; i++){
+            sc[si].win[i] = qsc_wlin(g_wtab, (double)i / s * QSC_TAB);
+            sc[si].e2 += sc[si].win[i]*sc[si].win[i];
+        }
+        int nf = sc[si].nframes;
+        sc[si].best_score = calloc(nf?nf:1, sizeof(double));
+        sc[si].best_bin   = calloc(nf?nf:1, sizeof(int));
+        sc[si].pa = calloc(nf?nf:1, sizeof(double));
+        sc[si].pb = calloc(nf?nf:1, sizeof(double));
+        sc[si].pc = calloc(nf?nf:1, sizeof(double));
+        for (int f = 0; f < nf; f++){
+            int gated = (s <= 256) &&
+                        !near_onset((uint32_t)f*sc[si].hop + s/2, onsets, no, ogate);
+            frame_analyze(&sc[si], r, N, f, re, im, gated);
+        }
+    }
+
+    /* ---------- pursuit loop ---------- */
+    QscAtom *atoms = malloc(sizeof(QscAtom)*Kmax);
+    int K = 0; double e_res = e_src;
+    while (K < Kmax && e_res > e_stop){
+        int bsi=-1, bf=-1; double bscore = 0.0;
+        for (int si = 0; si < QSC_SCALES; si++)
+            for (int f = 0; f < sc[si].nframes; f++)
+                if (sc[si].best_score[f] > bscore){
+                    bscore = sc[si].best_score[f]; bsi = si; bf = f;
+                }
+        if (bsi < 0) break;
+        ScaleCache *S = &sc[bsi];
+        int s = S->scale; uint32_t u = (uint32_t)bf * S->hop;
+        /* parabolic bin refinement (magnitude) */
+        double pa=S->pa[bf], pb=S->pb[bf], pc=S->pc[bf];
+        double den = pa - 2.0*pb + pc;
+        double d = (fabs(den) > 1e-12) ? 0.5*(pa - pc)/den : 0.0;
+        if (d < -0.5) d = -0.5; if (d > 0.5) d = 0.5;
+        double f_hz = ((double)S->best_bin[bf] + d) * (double)sr / s;
+        /* exact LS fit of amp*win*sin(theta + phase) at refined f */
+        double om = 2.0*M_PI*f_hz/sr;
+        double A=0,B=0,C=0,rc=0,rs=0;
+        for (int i = 0; i < s; i++){
+            double th = om*i, cth = cos(th), sth = sin(th);
+            double w = S->win[i], z = (u+(uint64_t)i<N ? r[u+i] : 0.0)*w;
+            A += w*w*cth*cth; B += w*w*cth*sth; C += w*w*sth*sth;
+            rc += z*cth; rs += z*sth;
+        }
+        double det = A*C - B*B; if (fabs(det) < 1e-18){ S->best_score[bf]=0; continue; }
+        double p = ( C*rc - B*rs)/det, q = (-B*rc + A*rs)/det;
+        double amp = sqrt(p*p + q*q);
+        if (amp < floor_amp) break;                       /* salience floor */
+        double phase = atan2(p, q);                       /* p cos + q sin = a sin(th+psi) */
+        if (phase < 0) phase += 2.0*M_PI;
+        double de = 0.0;
+        for (int i = 0; i < s && u+(uint64_t)i < N; i++){
+            double th = om*i;
+            double m = (p*cos(th) + q*sin(th)) * S->win[i];
+            de += m*(2.0*r[u+i] - m);
+            r[u+i] -= m;
+        }
+        e_res -= de; if (e_res < 0) e_res = 0;
+        QscAtom *a = &atoms[K];
+        a->rank=(uint32_t)K; a->onset=u; a->dur=(uint32_t)s;
+        a->freq=(float)f_hz; a->amp=(float)amp; a->phase=(float)phase; a->chirp=0.f;
+        a->layer = (s <= 256) ? 1 : 0; a->voice=0;
+        a->scale_idx=(uint8_t)bsi; a->flags=0;
+        K++;
+        /* dirty-frame recompute across all scales (§4.3 locality) */
+        for (int si = 0; si < QSC_SCALES; si++){
+            ScaleCache *T = &sc[si];
+            long lo = ((long)u - T->scale)/T->hop + 1; if (lo < 0) lo = 0;
+            long hi = ((long)u + s)/T->hop;
+            if (hi >= T->nframes) hi = T->nframes - 1;
+            for (long f = lo; f <= hi; f++){
+                int gated = (T->scale <= 256) &&
+                    !near_onset((uint32_t)f*T->hop + T->scale/2, onsets, no, ogate);
+                frame_analyze(T, r, N, (int)f, re, im, gated);
+            }
+        }
+        if ((K & 63) == 0)
+            fprintf(stderr, "  atom %4d  residual %+7.2f dB\n",
+                    K, 10.0*log10(e_res/e_src + 1e-30));
+    }
+
+    /* ---------- voice assignment (§4.7): rank-priority first-fit over
+       per-voice interval sets. High-salience atoms always win a voice; when
+       P_max overflows, the culled (lowest-salience) atoms have their
+       waveforms returned to the residual so the noise layer absorbs them
+       and total energy accounting stays closed. ---------------------------- */
+    typedef struct { uint32_t s, e; } Iv;
+    Iv  *viv[QSC_PMAX]; int vn[QSC_PMAX] = {0}, vcap[QSC_PMAX] = {0};
+    int P = 0, dropped = 0, kept = 0;
+    double e_drop = 0.0;
+    for (int i = 0; i < K; i++){                 /* atoms[] is in rank order */
+        uint32_t s0 = atoms[i].onset, e0 = s0 + atoms[i].dur;
+        int v = -1;
+        for (int j = 0; j < P && v < 0; j++){
+            int clash = 0;
+            for (int t = 0; t < vn[j]; t++)
+                if (s0 < viv[j][t].e && viv[j][t].s < e0){ clash = 1; break; }
+            if (!clash) v = j;
+        }
+        if (v < 0 && P < QSC_PMAX){
+            v = P; vcap[v] = 16; viv[v] = malloc(vcap[v]*sizeof(Iv)); P++;
+        }
+        if (v < 0){                              /* cull: return energy to r */
+            atoms[i].voice = 0xFF; dropped++;
+            int sd = (int)atoms[i].dur, sidx = atoms[i].scale_idx;
+            double om = 2.0*M_PI*(double)atoms[i].freq/sr;
+            double a0 = atoms[i].amp, p0 = atoms[i].phase;
+            for (int j = 0; j < sd && s0+(uint64_t)j < N; j++){
+                double mval = a0 * sin(om*j + p0) * sc[sidx].win[j];
+                r[s0+j] += mval; e_drop += mval*mval;
+            }
+            continue;
+        }
+        if (vn[v] == vcap[v]){ vcap[v]*=2; viv[v]=realloc(viv[v], vcap[v]*sizeof(Iv)); }
+        viv[v][vn[v]].s = s0; viv[v][vn[v]].e = e0; vn[v]++;
+        atoms[i].voice = (uint8_t)v; kept++;
+    }
+    for (int j = 0; j < P; j++) free(viv[j]);
+    if (dropped)
+        fprintf(stderr, "  voice cull: %d atoms (%.2f dB re source) -> residual\n",
+                dropped, 10.0*log10(e_drop/e_src + 1e-30));
+
+    /* ---------- residual model (§4.5): unity-peak band envelopes divided by
+       noise-bank calibration rho_b, then a closed-loop broadband trim: the
+       analyzer synthesizes the layer exactly as the renderer will, measures
+       it, and scales all gains so total layer RMS == true residual RMS.
+       The trim absorbs band-overlap double counting and the coherent sum of
+       one noise source through overlapping filters. -------------------------- */
+    uint32_t frames = (uint32_t)((N + QSC_RES_HOP - 1)/QSC_RES_HOP);
+    uint16_t *gains = calloc((size_t)frames*QSC_BANDS, sizeof(uint16_t));
+    {
+        QscSvf f[QSC_BANDS]; double rho[QSC_BANDS];
+        /* calibration: RMS of unit LCG noise through each band, 48000 samps */
+        for (int b = 0; b < QSC_BANDS; b++){
+            qsc_svf_init(&f[b], qsc_band_fc(b), QSC_BAND_Q, sr);
+            int32_t st = 0; double acc = 0;
+            for (int i = 0; i < 48000; i++){
+                st = qsc_lcg_step(st, (int32_t)0xC0FFEE);
+                double y = qsc_svf_bp(&f[b], qsc_lcg_out(st));
+                acc += y*y;
+            }
+            rho[b] = sqrt(acc/48000.0); if (rho[b] < 1e-9) rho[b] = 1e-9;
+            f[b].ic1 = f[b].ic2 = 0.0;
+        }
+        double *genv = calloc((size_t)frames*QSC_BANDS, sizeof(double));
+        double acc[QSC_BANDS] = {0};
+        double e_res_true = 0.0;
+        for (uint64_t i = 0; i < N; i++){
+            e_res_true += r[i]*r[i];
+            for (int b = 0; b < QSC_BANDS; b++){
+                double y = qsc_svf_bp(&f[b], r[i]);
+                acc[b] += y*y;
+            }
+            if ((i+1) % QSC_RES_HOP == 0 || i+1 == N){
+                uint32_t fr = (uint32_t)(i/QSC_RES_HOP);
+                uint64_t cnt = (i % QSC_RES_HOP) + 1;
+                for (int b = 0; b < QSC_BANDS; b++){
+                    genv[(size_t)fr*QSC_BANDS + b] = sqrt(acc[b]/cnt)/rho[b];
+                    acc[b] = 0;
+                }
+            }
+        }
+        /* closed loop: mirror the renderer's synthesis path exactly */
+        for (int b = 0; b < QSC_BANDS; b++) f[b].ic1 = f[b].ic2 = 0.0;
+        int32_t st = 0; double e_syn = 0.0;
+        for (uint64_t t = 0; t < N; t++){
+            st = qsc_lcg_step(st, (int32_t)seed);
+            double nz = qsc_lcg_out(st);
+            double fpos = (double)t / (double)QSC_RES_HOP;
+            uint32_t f0 = (uint32_t)fpos; if (f0 > frames-1) f0 = frames-1;
+            uint32_t f1 = f0+1 < frames ? f0+1 : frames-1;
+            double frq = fpos - (double)f0;
+            double a = 0.0;
+            for (int b = 0; b < QSC_BANDS; b++){
+                double g0 = genv[(size_t)f0*QSC_BANDS+b];
+                double g1 = genv[(size_t)f1*QSC_BANDS+b];
+                a += qsc_svf_bp(&f[b], nz) * (g0 + frq*(g1-g0));
+            }
+            e_syn += a*a;
+        }
+        double trim = (e_syn > 1e-30) ? sqrt(e_res_true/e_syn) : 1.0;
+        for (size_t i = 0; i < (size_t)frames*QSC_BANDS; i++)
+            gains[i] = qsc_gain_q(genv[i]*trim);
+        free(genv);
+        fprintf(stderr, "  residual layer trim: %+.2f dB\n", 20.0*log10(trim));
+    }
+
+    QscAtom *fa = malloc(sizeof(QscAtom)*(kept?kept:1)); int m = 0;
+    for (int i = 0; i < K; i++) if (atoms[i].voice != 0xFF) fa[m++] = atoms[i];
+    qsort(fa, m, sizeof(QscAtom), cmp_voice_onset);
+
+    Qsc q = {0};
+    q.h.flags=0; q.h.sample_rate=sr; q.h.source_len=N;
+    q.h.atom_count=(uint32_t)m; q.h.voice_count=(uint16_t)P;
+    q.h.scale_count=QSC_SCALES; q.h.band_count=QSC_BANDS;
+    q.h.residual_hop=QSC_RES_HOP; q.h.residual_frames=frames;
+    q.h.noise_seed=seed; q.atoms=fa; q.res_gains=gains;
+    if (qsc_write(outpath, &q)){ fprintf(stderr, "analyzer: write failed\n"); return 1; }
+
+    fprintf(stderr,
+        "analyzer: %s\n  %llu samples @ %u Hz | atoms %d (dropped %d) | voices %d\n"
+        "  onsets %d | residual %+.2f dB re source | seed 0x%08X -> %s\n",
+        inpath, (unsigned long long)N, sr, m, dropped, P, no,
+        10.0*log10(e_res/e_src + 1e-30), seed, outpath);
+    return 0;
+}

@@ -194,6 +194,16 @@ supervisor). They are **separate programs** — the framework does not depend on
 they run headless without any UI. They are **GPLv3-only OR commercial**, a different
 license from the MPL framework; see `audio-stack/README.md` and `LICENSING.md`.
 
+## Quanta compiler (optional)
+
+`quanta/` is **DeMoD Quanta**, an analysis-to-synthesis audio codec. A matching-pursuit
+analyzer decomposes a WAV into Gabor *acoustic quanta* (a `.qsc` score); the freeze step
+compiles that score into a **pure static Faust program** — a lossy codec whose *decoder is
+a `.dsp` file*. Three standalone C CLIs (`quanta-analyzer` / `-render` / `-freeze`), plus a
+Lua score-browser panel for this framework. Like the audio stack it is **GPLv3-only OR
+commercial** (its `ui/` panel is MPL-2.0); see `quanta/README.md` and `LICENSING.md`.
+`nix build .#quanta` builds the CLIs; `nix run .#quanta` opens the panel.
+
 ## Remote engine over UDP (DCF / HydraMesh, optional)
 
 By default the UI and engine share a machine (local socket + `/dev/shm`). They can also be
@@ -315,6 +325,9 @@ demod-ui/                 # the framework — MPL-2.0
     rt-audio/             demod-rt engine (C, JACK)
     orchestrator/         demod-orchestrator (Haskell)
     ipc/                  shared-memory + control-socket contract
+  quanta/                 optional analysis-to-synthesis Faust-freeze codec — GPLv3/commercial
+    src/  include/        analyzer + render + freeze CLIs, QSC format (C)
+    ui/                   score-browser panel (Lua, MPL-2.0)
 ```
 
 ## Contributing

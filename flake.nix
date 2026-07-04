@@ -75,6 +75,27 @@
               "demod-orchestrator" ./audio-stack/orchestrator { demod_bt = null; };
           in pkgs.haskell.lib.compose.appendConfigureFlags [ "--flag=-bt-midi" ] base;
 
+        # ── The quanta compiler (GPLv3-only OR commercial) ───────────
+        # Analysis-to-synthesis codec: matching-pursuit analyzer -> QSC score ->
+        # Faust-freeze (decoder is a pure static Faust program). Separate program
+        # from the framework; see quanta/ and LICENSING.md. Builds three CLIs with
+        # a plain gcc Makefile — no JACK, no framework dependency.
+        quanta = pkgs.stdenv.mkDerivation {
+          pname = "demod-quanta";
+          version = "0.1.0";
+          src = ./quanta;
+          buildPhase = "make";
+          installPhase = ''
+            mkdir -p $out/bin
+            cp bin/quanta-analyzer bin/quanta-render bin/quanta-freeze $out/bin/
+          '';
+          meta = {
+            description = "DeMoD Quanta — acoustic-quanta analyzer / Faust freeze compiler";
+            license = pkgs.lib.licenses.gpl3Only;
+            platforms = pkgs.lib.platforms.linux;
+          };
+        };
+
         # ── DCF (HydraMesh/UDP) remote transport ─────────────────────
         # Optional: run the engine on another box, driven over UDP. Uses the
         # vendored HydraMesh codec headers (LGPL-3.0, third_party/hydramesh).
@@ -132,7 +153,7 @@
         packages = {
           default = demod-ui;
           inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf
-                  demod-remote-bridge dcf-ws-bridge;
+                  demod-remote-bridge dcf-ws-bridge quanta;
 
           # Portable single-file build of the framework (bundles the nix closure).
           appimage = nix-appimage.lib.${system}.mkAppImage {
@@ -192,6 +213,16 @@
           program = toString (pkgs.writeShellScript "demod-rov" ''
             export DEMOD_SHELL_DIR=${./shell}/ DEMOD_ROV_DIR=${./rov}/
             exec ${demod-ui-dcf}/bin/demod-ui ${./rov}/main.lua "$@"
+          '');
+        };
+
+        # `nix run .#quanta` — the Quanta score-browser panel on the framework host
+        # (see quanta/ui/quanta_panel.lua; DCF ops stubbed, so plain demod-ui). The
+        # analyzer/render/freeze CLIs are the `quanta` package: `nix build .#quanta`.
+        apps.quanta = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-quanta-panel" ''
+            exec ${demod-ui}/bin/demod-ui ${./quanta}/ui/quanta_panel.lua "$@"
           '');
         };
 

@@ -1,0 +1,10 @@
+/* demod-quanta minimal offline C architecture */
+#include <math.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "faust/gui/CInterface.h"
+static inline int max(int a, int b){ return a > b ? a : b; }
+static inline int min(int a, int b){ return a < b ? a : b; }
+<<includeIntrinsic>>
+<<includeclass>>
