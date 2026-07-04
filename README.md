@@ -213,6 +213,19 @@ bridge it drives the Linux engine from the browser (browsers can't do raw UDP). 
 `emcmake cmake -S . -B build-wasm && cmake --build build-wasm`; full setup + the
 `ws_loopback.sh` proof in [`docs/browser-client.md`](docs/browser-client.md).
 
+## MCP server (drive it from an AI agent)
+
+A [Model Context Protocol](https://modelcontextprotocol.io) server lets an AI agent **work with
+this system**: build it, render an example headless and *see* the screenshot, run the test
+harnesses, and drive a **live engine** over the control socket (`get_health`, `load_fx`,
+`set_param`, `set_bpm`, `synth.*`, mixer). Pure standard-library Python, no deps:
+
+```bash
+claude mcp add demod -- python3 "$PWD/mcp/demod_mcp_server.py"   # or: nix run .#mcp
+```
+
+See [`mcp/README.md`](mcp/README.md) for the tool list.
+
 ## Ecosystem
 
 This repo is the framework + audio core. It's the foundation for a wider open stack:

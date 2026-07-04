@@ -146,6 +146,16 @@
           program = "${demod-ui}/bin/demod-ui";
         };
 
+        # `nix run .#mcp` — the DeMoD MCP server (AI agent tooling; see mcp/).
+        # Runs against the working tree (DEMOD_REPO defaults to $PWD) so its
+        # build/test/render tools operate on your checkout, not the store.
+        apps.mcp = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-mcp" ''
+            exec ${pkgs.python3}/bin/python3 "''${DEMOD_REPO:-$PWD}/mcp/demod_mcp_server.py" "$@"
+          '');
+        };
+
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             # framework
