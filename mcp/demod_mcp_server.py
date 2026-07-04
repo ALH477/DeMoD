@@ -18,17 +18,25 @@ Requires `nix` on PATH for the build/test/render tools. Engine tools need a
 running orchestrator control socket ($DEMOD_CONTROL_SOCK or /run/demod/control.sock).
 """
 import base64
+import atexit
 import json
 import os
+import shutil
 import socket
 import struct
 import subprocess
 import sys
+import tempfile
+import time
 import zlib
 
 SERVER_NAME = "demod"
 SERVER_VERSION = "0.1.0"
 PROTOCOL_VERSION = "2024-11-05"
+
+# A demod_stack_up-managed rig (orchestrator + demod-rt), persisted across tool
+# calls: {"proc": Popen, "sock": str, "work": str}. None when nothing is running.
+g_stack = None
 
 # The repo is the parent of this mcp/ dir; override with DEMOD_REPO. Tools run
 # against the working tree (they build/test/render it), not a store copy.
@@ -94,7 +102,11 @@ def control_request(sock_path, obj, timeout=3.0):
 
 
 def control_path(arg):
-    return arg or os.environ.get("DEMOD_CONTROL_SOCK") or "/run/demod/control.sock"
+    if arg:
+        return arg
+    if g_stack and g_stack["proc"].poll() is None:
+        return g_stack["sock"]        # prefer a demod_stack_up rig if one's running
+    return os.environ.get("DEMOD_CONTROL_SOCK") or "/run/demod/control.sock"
 
 
 # ── PPM(P6) -> PNG, pure stdlib (zlib), with nearest-neighbour downscale ─────
@@ -253,6 +265,120 @@ def tool_engine_op(a):
     return err(out) if r.get("ok") is False else text(out)
 
 
+# ── managed rig bring-up (demod_stack_up / _down) ────────────────────────────
+def _rtprio():
+    rc, out, _ = run(["bash", "-c", "ulimit -r"], timeout=10)
+    v = (out or "").strip()
+    if v == "unlimited":
+        return 10 ** 9
+    try:
+        return int(v)
+    except ValueError:
+        return 0
+
+
+def _resolve_pwjack():
+    rc, out, _ = run(["nix", "shell", "nixpkgs#pipewire.jack", "--command",
+                      "bash", "-c", "command -v pw-jack"], timeout=600)
+    p = (out or "").strip().splitlines()[-1] if out.strip() else ""
+    return p if p and os.path.exists(p) else None
+
+
+def _health(sock):
+    return control_request(sock, {"v": 1, "id": "h", "op": "get_health"})
+
+
+def _rt_running(h):
+    return any(c.get("name") == "demod-rt" and c.get("status") == "running"
+               for c in (h.get("data") or {}).get("children", []))
+
+
+def tool_stack_up(a):
+    """Bring up a real orchestrator + demod-rt on JACK so the engine tools can
+    drive it. Guarded: returns a SKIP message where JACK/RT aren't available."""
+    global g_stack
+    if g_stack and g_stack["proc"].poll() is None:
+        try:
+            h = _health(g_stack["sock"])
+        except Exception:  # noqa: BLE001
+            h = {}
+        return text("stack already up. control socket: %s\n%s"
+                    % (g_stack["sock"], json.dumps(h, indent=2)))
+
+    if _rtprio() < 80:
+        return text("SKIP: real engine needs rtprio >= 80 (ulimit -r). Use the harnesses instead.")
+    if run(["pgrep", "-x", "pipewire"], timeout=10)[0] != 0:
+        return text("SKIP: no JACK server (no running PipeWire). Start one, or use demod_test.")
+    pwjack = _resolve_pwjack()
+    if not pwjack:
+        return text("SKIP: pw-jack (nixpkgs#pipewire.jack) unavailable.")
+
+    work = tempfile.mkdtemp(prefix="demod-mcp-stack-")
+    for pkg, link in (("demod-orchestrator", "orch"), ("demod-rt", "rt")):
+        if run(["nix", "build", ".#" + pkg, "-o", os.path.join(work, link)], timeout=1800)[0] != 0:
+            shutil.rmtree(work, ignore_errors=True)
+            return err("nix build .#%s failed" % pkg)
+    orch = os.path.join(work, "orch/bin/demod-orchestrator")
+    rt = os.path.join(work, "rt/bin/demod-rt")
+    sock = os.path.join(work, "control.sock")
+
+    logf = open(os.path.join(work, "orch.log"), "w")
+    proc = subprocess.Popen([pwjack, orch, "--control-socket", sock, "--rt-binary", rt],
+                            cwd=REPO, stdout=logf, stderr=subprocess.STDOUT)
+    health = None
+    for _ in range(80):
+        time.sleep(0.25)
+        if proc.poll() is not None:
+            break
+        if os.path.exists(sock):
+            try:
+                h = _health(sock)
+                if _rt_running(h):
+                    health = h
+                    break
+            except Exception:  # noqa: BLE001 — socket may not be accepting yet
+                pass
+    if not health:
+        try:
+            proc.terminate()
+        except Exception:  # noqa: BLE001
+            pass
+        with open(os.path.join(work, "orch.log")) as f:
+            tail = _tail(f.read(), 2000)
+        shutil.rmtree(work, ignore_errors=True)
+        return err("stack failed to reach 'running'.\norch.log:\n" + tail)
+
+    g_stack = {"proc": proc, "sock": sock, "work": work}
+    return text("stack up. demod_engine_* now target it by default.\ncontrol socket: %s\n%s"
+                % (sock, json.dumps(health, indent=2)))
+
+
+def _teardown():
+    global g_stack
+    if not g_stack:
+        return "no stack running"
+    proc = g_stack["proc"]
+    try:
+        proc.terminate()          # SIGTERM -> orchestrator cleanly stops demod-rt
+        proc.wait(timeout=5)
+    except Exception:  # noqa: BLE001
+        try:
+            proc.kill()
+        except Exception:  # noqa: BLE001
+            pass
+    run(["pkill", "-f", "demod-rt --core"], timeout=10)
+    shutil.rmtree(g_stack["work"], ignore_errors=True)
+    g_stack = None
+    return "stack down"
+
+
+def tool_stack_down(a):
+    return text(_teardown())
+
+
+atexit.register(lambda: g_stack and _teardown())
+
+
 TOOLS = [
     {"name": "demod_build", "description": "Build a DeMoD component with nix (demod-ui, demod-rt, demod-orchestrator, demod-remote-bridge, dcf-ws-bridge, demod-ui-dcf).",
      "inputSchema": {"type": "object", "properties": {"package": {"type": "string", "enum": PACKAGES}}},
@@ -266,7 +392,13 @@ TOOLS = [
     {"name": "demod_smoke", "description": "Run an example headless for a moment and confirm it boots with no Lua errors.",
      "inputSchema": {"type": "object", "properties": {"example": {"type": "string", "enum": EXAMPLES}}},
      "_fn": tool_smoke},
-    {"name": "demod_engine_health", "description": "Query a live orchestrator's get_health over its control socket (demod-rt liveness, callbacks, xruns, children).",
+    {"name": "demod_stack_up", "description": "Bring up a real rig (orchestrator + demod-rt on JACK, via pw-jack) that the demod_engine_* tools then drive by default. Guarded: SKIPs cleanly where JACK/RT privileges are absent. Persists until demod_stack_down.",
+     "inputSchema": {"type": "object", "properties": {}},
+     "_fn": tool_stack_up},
+    {"name": "demod_stack_down", "description": "Tear down the rig started by demod_stack_up (stops demod-rt + orchestrator, cleans up).",
+     "inputSchema": {"type": "object", "properties": {}},
+     "_fn": tool_stack_down},
+    {"name": "demod_engine_health", "description": "Query a live orchestrator's get_health over its control socket (demod-rt liveness, callbacks, xruns, children). Uses the demod_stack_up rig if one is running.",
      "inputSchema": {"type": "object", "properties": {"socket": {"type": "string", "description": "control socket path; defaults to $DEMOD_CONTROL_SOCK or /run/demod/control.sock"}}},
      "_fn": tool_engine_health},
     {"name": "demod_engine_list_slots", "description": "List the engine's FX/synth slots (loaded/path/bypassed) over the control socket.",

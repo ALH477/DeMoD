@@ -34,6 +34,8 @@ orchestrator control socket — `$DEMOD_CONTROL_SOCK` or `/run/demod/control.soc
 | `demod_render` | Render an example UI headless (`DEMOD_SHOT`) and return a **PNG** the agent can see |
 | `demod_smoke` | Boot an example headless and confirm no Lua errors |
 | `demod_test` | Run a bridge harness (`loopback` / `ws_loopback` / `engine_e2e`) → PASS/FAIL/SKIP |
+| `demod_stack_up` | Bring up a real rig (orchestrator + demod-rt on JACK via `pw-jack`) that the `demod_engine_*` tools then target by default; SKIPs cleanly without JACK/RT |
+| `demod_stack_down` | Tear that rig down |
 | `demod_engine_health` | A live orchestrator's `get_health` (demod-rt liveness, callbacks, xruns, children) |
 | `demod_engine_list_slots` | The engine's FX/synth slot table |
 | `demod_engine_op` | Send one control op — `set_bpm`, `set_param`, `load_fx`, `bypass_fx`, `synth.*`, `set_slot_*` — and return the reply |
@@ -41,6 +43,8 @@ orchestrator control socket — `$DEMOD_CONTROL_SOCK` or `/run/demod/control.soc
 **Resources:** `demod://skill` (the `SKILL.md` `dm.*` API reference) and `demod://control-ops`
 (the control-socket op vocabulary), so an agent writing Lua or issuing ops has the reference inline.
 
-Engine writes are whitelisted; unknown ops are refused. The server never spawns the RT engine
-itself (that needs JACK + RT privileges — use `nix run`/`engine_e2e.sh`); it drives one that's
-already running.
+Engine writes are whitelisted; unknown ops are refused. `demod_stack_up` will spawn a real rig for
+you where JACK + RT privileges exist (on a dev box, JACK comes from a running PipeWire via
+`pw-jack`); otherwise it SKIPs cleanly and you point the engine tools at an already-running socket
+(`nix run`/`engine_e2e.sh`). A `demod_stack_up` rig persists across tool calls and is torn down by
+`demod_stack_down` or when the server exits.
