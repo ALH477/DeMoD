@@ -248,8 +248,10 @@
             # audio stack (engine + orchestrator)
             cmake ninja jack2
             ghc cabal-install
-            # fonts (make font)
-            python3 curl gzip
+            # quanta codec: Faust (freeze -> .dsp) + numpy (verification metrics)
+            faust
+            # fonts (make font) + quanta metrics (numpy)
+            (python3.withPackages (ps: [ ps.numpy ])) curl gzip
             # dev CLI: fmt/lint (stylua+clang-tools), compiledb (bear), watch (entr),
             # LSP (lua-language-server + clangd from clang-tools), completion (bash-completion)
             stylua clang-tools lua-language-server bear entr bash-completion
@@ -263,6 +265,7 @@
             echo " ./dev shot <target> [frame]   — headless screenshot -> PNG"
             echo " ./dev test <name|all> · fmt|lint · doctor · watch · compiledb"
             echo " make / make test / make font   ·   see DEVELOPING.md"
+            echo " (cd quanta && make test)       — quanta null + M0 tonal gates"
             echo "═══════════════════════════════════════════"
             # tab-completion for ./dev
             [ -n "''${BASH_VERSION:-}" ] && [ -f completions/dev.bash ] && \

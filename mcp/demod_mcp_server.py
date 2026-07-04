@@ -49,7 +49,12 @@ RENDER_MAX_W = 720      # downscale screenshots to keep the base64 small
 EXAMPLES = ["dsp_studio", "systems_viz", "hello", "dsp_panel", "card_launcher"]
 # Flake packages the build tool will nix-build.
 PACKAGES = ["demod-ui", "demod-rt", "demod-orchestrator", "demod-ui-dcf",
-            "demod-remote-bridge", "dcf-ws-bridge"]
+            "demod-remote-bridge", "dcf-ws-bridge", "quanta"]
+
+# quanta codec defaults (analysis-to-synthesis: WAV -> .qsc score -> frozen .dsp).
+QUANTA_K = 2048          # matching-pursuit atom budget
+QUANTA_SNR = 45.0        # pursuit stop SNR (dB)
+QUANTA_SEED = "0xDEC0DE" # residual noise LCG seed
 # Test harnesses (bridge/test).
 HARNESSES = {"loopback": "loopback.sh", "ws_loopback": "ws_loopback.sh",
              "engine_e2e": "engine_e2e.sh"}
@@ -379,6 +384,132 @@ def tool_stack_down(a):
 atexit.register(lambda: g_stack and _teardown())
 
 
+# ── quanta codec (analysis-to-synthesis) ─────────────────────────────────────
+def _resolve_path(p):
+    """Absolute path, or one relative to the repo root; None if it doesn't exist."""
+    if not p:
+        return None
+    q = p if os.path.isabs(p) else os.path.join(REPO, p)
+    return q if os.path.exists(q) else None
+
+
+def _quanta_bins():
+    """nix build .#quanta and return its bin/ dir. Raises RuntimeError on failure."""
+    rc, out, e = run(["nix", "build", ".#quanta", "--no-link", "--print-out-paths"],
+                     timeout=900)
+    paths = [ln for ln in (out or "").splitlines() if ln.strip()]
+    if rc != 0 or not paths:
+        raise RuntimeError("nix build .#quanta failed (rc=%d)\n%s" % (rc, _tail(e or out)))
+    bind = os.path.join(paths[-1].strip(), "bin")
+    if not os.path.isdir(bind):
+        raise RuntimeError("quanta build produced no bin/ at %s" % bind)
+    return bind
+
+
+def tool_quanta_compile(a):
+    """WAV -> matching-pursuit .qsc score -> (optional) frozen Faust .dsp."""
+    wav = _resolve_path(a.get("wav"))
+    if not wav:
+        return err("wav not found: %r (give an absolute path or one relative to the repo root)"
+                   % a.get("wav"))
+    k = int(a.get("k", QUANTA_K))
+    snr = float(a.get("snr", QUANTA_SNR))
+    seed = str(a.get("seed", QUANTA_SEED))
+    do_freeze = a.get("freeze", True)
+    try:
+        bind = _quanta_bins()
+    except Exception as ex:  # noqa: BLE001 — surface build failure to the agent
+        return err(str(ex))
+    work = tempfile.mkdtemp(prefix="demod-mcp-quanta-")
+    qsc = os.path.join(work, "score.qsc")
+    rc, out, e = run([os.path.join(bind, "quanta-analyzer"), wav, "-o", qsc,
+                      "--k", str(k), "--snr", str(snr), "--seed", seed], timeout=600)
+    if rc != 0 or not os.path.exists(qsc):
+        shutil.rmtree(work, ignore_errors=True)
+        return err("quanta-analyzer failed (rc=%d)\n%s" % (rc, _tail(e or out)))
+    report = ("quanta-analyzer %s  (K=%d snr=%.0f seed=%s)\n%s"
+              % (os.path.basename(wav), k, snr, seed, (e or out).strip()))
+    if do_freeze:
+        dsp = os.path.join(work, "frozen.dsp")
+        rc2, out2, e2 = run([os.path.join(bind, "quanta-freeze"), qsc, "-o", dsp], timeout=180)
+        if rc2 != 0 or not os.path.exists(dsp):
+            return err(report + "\n\nquanta-freeze failed (rc=%d)\n%s" % (rc2, _tail(e2 or out2)))
+        report += ("\n\nquanta-freeze -> %s\n%s\n  .qsc %d B   .dsp %d B"
+                   % (dsp, (e2 or out2).strip(), os.path.getsize(qsc), os.path.getsize(dsp)))
+    else:
+        report += "\n\nscore: %s (%d B)" % (qsc, os.path.getsize(qsc))
+    return text(report)
+
+
+def tool_quanta_verify(a):
+    """Run the quanta gate loop (null test + M0 tonal) and report PASS/FAIL."""
+    k = int(a.get("k", 400))
+    inner = ("cd quanta && make clean >/dev/null 2>&1; make >/dev/null 2>&1 && "
+             "K=%d bash test/run.sh" % k)
+    rc, out, e = run(["nix", "develop", "--command", "bash", "-c", inner], timeout=1200)
+    body = out + ("\n" + e if e else "")
+    keep = [ln for ln in body.splitlines() if any(
+        s in ln for s in ("NULL GATE", "null:", "gate:", "lsd:", "ALL GATES",
+                          "residual layer trim", "voice cull", "FAIL", "Error"))]
+    ok_ = rc == 0 and "ALL GATES PASS" in body
+    head = "quanta gates: %s\n" % ("PASS" if ok_ else "FAIL")
+    return (text if ok_ else err)(head + _tail("\n".join(keep) or body))
+
+
+def tool_quanta_render(a):
+    """Render the quanta score-browser panel headless -> PNG. With `wav`, compile
+    that file first and show its score; otherwise show the in-tree sample score."""
+    frame = int(a.get("frame", 90))
+    shot = "/tmp/demod_mcp_quanta.ppm"
+    try:
+        os.path.exists(shot) and os.remove(shot)
+    except OSError:
+        pass
+    panel = os.path.join(REPO, "quanta", "ui", "quanta_panel.lua")
+    demodui = os.path.join(REPO, "demod-ui")
+    cwd_for_panel = os.path.join(REPO, "quanta")   # panel dofile()s ui/score.lua from cwd
+    note = "in-tree sample score"
+    if a.get("wav"):
+        wav = _resolve_path(a.get("wav"))
+        if not wav:
+            return err("wav not found: %r" % a.get("wav"))
+        try:
+            bind = _quanta_bins()
+        except Exception as ex:  # noqa: BLE001
+            return err(str(ex))
+        work = tempfile.mkdtemp(prefix="demod-mcp-qrender-")
+        os.makedirs(os.path.join(work, "ui"), exist_ok=True)
+        qsc = os.path.join(work, "score.qsc")
+        rc, out, e = run([os.path.join(bind, "quanta-analyzer"), wav, "-o", qsc,
+                          "--k", str(int(a.get("k", QUANTA_K))),
+                          "--snr", str(float(a.get("snr", QUANTA_SNR)))], timeout=600)
+        if rc != 0 or not os.path.exists(qsc):
+            shutil.rmtree(work, ignore_errors=True)
+            return err("quanta-analyzer failed (rc=%d)\n%s" % (rc, _tail(e or out)))
+        rc2, o2, e2 = run([os.path.join(bind, "quanta-freeze"), qsc,
+                           "-o", os.path.join(work, "frozen.dsp"),
+                           "--lua", os.path.join(work, "ui", "score.lua")], timeout=180)
+        if rc2 != 0 or not os.path.exists(os.path.join(work, "ui", "score.lua")):
+            shutil.rmtree(work, ignore_errors=True)
+            return err("quanta-freeze --lua failed (rc=%d)\n%s" % (rc2, _tail(e2 or o2)))
+        cwd_for_panel = work
+        note = "compiled score of %s" % os.path.basename(wav)
+    inner = ("cd %s && make >/dev/null 2>&1; cd %s && "
+             "SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy DEMOD_SHOT=%s DEMOD_SHOT_FRAME=%d "
+             "timeout 25 %s %s" % (REPO, cwd_for_panel, shot, frame, demodui, panel))
+    rc, out, e = run(["nix", "develop", "--command", "bash", "-c", inner], timeout=400)
+    if not os.path.exists(shot):
+        return err("no frame produced (rc=%d)\n%s" % (rc, _tail(e or out)))
+    with open(shot, "rb") as f:
+        w, h, rgb = _read_ppm(f.read())
+    w, h, rgb = _downscale(w, h, rgb, RENDER_MAX_W)
+    png = rgb_to_png(w, h, rgb)
+    return {"content": [
+        {"type": "text", "text": "quanta panel (%s) at frame %d (%dx%d)" % (note, frame, w, h)},
+        {"type": "image", "data": base64.b64encode(png).decode(), "mimeType": "image/png"},
+    ]}
+
+
 TOOLS = [
     {"name": "demod_build", "description": "Build a DeMoD component with nix (demod-ui, demod-rt, demod-orchestrator, demod-remote-bridge, dcf-ws-bridge, demod-ui-dcf).",
      "inputSchema": {"type": "object", "properties": {"package": {"type": "string", "enum": PACKAGES}}},
@@ -392,6 +523,24 @@ TOOLS = [
     {"name": "demod_smoke", "description": "Run an example headless for a moment and confirm it boots with no Lua errors.",
      "inputSchema": {"type": "object", "properties": {"example": {"type": "string", "enum": EXAMPLES}}},
      "_fn": tool_smoke},
+    {"name": "demod_quanta_compile", "description": "DeMoD Quanta codec: compile a WAV into a matching-pursuit .qsc score and (by default) freeze it to a static Faust .dsp. Reports atoms/voices/residual dB + artifact paths.",
+     "inputSchema": {"type": "object",
+                     "properties": {"wav": {"type": "string", "description": "input WAV path (absolute or relative to the repo root)"},
+                                    "k": {"type": "integer", "description": "matching-pursuit atom budget (default 2048)"},
+                                    "snr": {"type": "number", "description": "pursuit stop SNR in dB (default 45)"},
+                                    "seed": {"type": "string", "description": "residual noise seed (default 0xDEC0DE)"},
+                                    "freeze": {"type": "boolean", "description": "also emit the frozen .dsp (default true)"}},
+                     "required": ["wav"]},
+     "_fn": tool_quanta_compile},
+    {"name": "demod_quanta_verify", "description": "Run the quanta release gates: the null test (frozen Faust artifact vs C reference player, <= -120 dBFS) and the M0 tonal LSD gate. Reports PASS/FAIL with the dB figures. Needs faust + numpy (in the flake devShell).",
+     "inputSchema": {"type": "object", "properties": {"k": {"type": "integer", "description": "hybrid-corpus atom budget for the loop (default 400)"}}},
+     "_fn": tool_quanta_verify},
+    {"name": "demod_quanta_render", "description": "Render the quanta score-browser panel headless and return a PNG. With `wav`, compile that file first and show its score; otherwise show the in-tree sample score.",
+     "inputSchema": {"type": "object",
+                     "properties": {"wav": {"type": "string", "description": "optional WAV to compile and display"},
+                                    "frame": {"type": "integer", "description": "frame to capture (default 90)"},
+                                    "k": {"type": "integer"}, "snr": {"type": "number"}}},
+     "_fn": tool_quanta_render},
     {"name": "demod_stack_up", "description": "Bring up a real rig (orchestrator + demod-rt on JACK, via pw-jack) that the demod_engine_* tools then drive by default. Guarded: SKIPs cleanly where JACK/RT privileges are absent. Persists until demod_stack_down.",
      "inputSchema": {"type": "object", "properties": {}},
      "_fn": tool_stack_up},
@@ -418,6 +567,9 @@ RESOURCES = [
     {"uri": "demod://skill", "name": "SKILL.md — dm.* Lua API reference",
      "description": "The authoritative dm.* API + 'common mistakes' for writing DeMoD Lua.",
      "mimeType": "text/markdown", "_path": "SKILL.md"},
+    {"uri": "demod://quanta-spec", "name": "quanta/docs/SPEC.md — Quanta codec spec",
+     "description": "QSC score format + the analysis-to-synthesis / Faust-freeze engine spec.",
+     "mimeType": "text/markdown", "_path": "quanta/docs/SPEC.md"},
     {"uri": "demod://control-ops", "name": "Control-socket op vocabulary",
      "description": "The JSON-lines ops the orchestrator accepts.",
      "mimeType": "text/markdown", "_gen": lambda: "# Control-socket ops\n\n" +
