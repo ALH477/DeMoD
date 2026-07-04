@@ -93,12 +93,27 @@ operator-supplied tunnel. Never expose the bridge on an untrusted network.
 
 ## Verify
 
+Two tiers (see `audio-stack/bridge/test/README.md`):
+
 ```bash
-# WASM build + headless render (Playwright chromium) — the standalone-UI proof.
-# WS transport end-to-end (browser-style client -> dcf-ws-bridge -> demod-remote-bridge):
-bash audio-stack/bridge/test/ws_loopback.sh    # PASS = PING/PONG + telemetry over the WS relay
-# The pure-UDP (native-client) path is the sibling audio-stack/bridge/test/loopback.sh.
+# Tier 1 — transport, against the stub fixture (no JACK/RT, CI-safe):
+bash audio-stack/bridge/test/ws_loopback.sh    # browser (WS) -> bridge -> stub
+bash audio-stack/bridge/test/loopback.sh       # native (UDP) -> bridge -> stub
+
+# Tier 2 — the browser path against the REAL engine (needs JACK + RT priv; self-skips otherwise):
+bash audio-stack/bridge/test/engine_e2e.sh     # WS client -> dcf-ws-bridge -> demod-remote-bridge
+                                               #   -> real demod-orchestrator + demod-rt on JACK
 ```
+
+`engine_e2e.sh` asserts, against a live engine: PONG + real meter telemetry over the WebSocket
+relay, `demod-rt` running with **advancing JACK callbacks**, and a control op round-tripping to the
+**real orchestrator** (it replies, and the bridge reads that reply). Standalone WASM build + headless
+render (Playwright chromium) remain the standalone-UI proof.
+
+> **Control-op serialization.** `demod-remote-bridge` reads the orchestrator's per-op JSON reply
+> before closing the control socket (like the local client, `src/ipc/demod_control.c`). This
+> serializes back-to-back ops — a boot burst of `load_fx` (each restarts `demod-rt`) no longer
+> races and drops slots — and avoids an `EPIPE` from replying to a half-closed socket.
 
 ## Latency & scope
 

@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <math.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -62,7 +63,40 @@ static int control_send_line(const char *json, size_t len) {
     strncpy(addr.sun_path, control_path(), sizeof(addr.sun_path) - 1);
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) { close(fd); return -1; }
     int rc = 0;
-    if (write(fd, json, len) == (ssize_t)len) { (void)!write(fd, "\n", 1); } else rc = -1;
+    /* MSG_NOSIGNAL so a peer that closed early can't raise SIGPIPE here. */
+    if (send(fd, json, len, MSG_NOSIGNAL) == (ssize_t)len)
+        (void)!send(fd, "\n", 1, MSG_NOSIGNAL);
+    else
+        rc = -1;
+
+    /* Wait for the orchestrator's reply line before closing — the control
+     * protocol is one JSON reply per command, emitted AFTER the op is applied.
+     * This mirrors the local client (src/ipc/demod_control.c:63-85): it
+     * serializes back-to-back ops (a boot burst of load_fx, each of which
+     * restarts demod-rt, no longer races those restarts and drops all-but-one
+     * slot) and lets an explicit rejection surface. The old write-and-close
+     * left the reply unread — against the real orchestrator that meant a reply
+     * write to a half-closed socket (EPIPE) and unserialized bursts; the stub
+     * was silent so it never showed. Bounded by a recv timeout so a silent or
+     * absent server can never stall the relay. */
+    if (rc == 0) {
+        struct timeval tv = { .tv_sec = 0, .tv_usec = 250000 };
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        char reply[256];
+        size_t off = 0;
+        for (;;) {
+            ssize_t r = recv(fd, reply + off, sizeof(reply) - 1 - off, 0);
+            if (r <= 0) break;                      /* EOF, error, or timeout */
+            off += (size_t)r;
+            reply[off] = '\0';
+            if (memchr(reply, '\n', off)) break;    /* got the full reply line */
+            if (off >= sizeof(reply) - 1) break;    /* enough to inspect */
+        }
+        if (off > 0 && strstr(reply, "\"ok\":false")) {
+            fprintf(stderr, "[bridge] control op rejected: %.*s\n", (int)off, reply);
+            rc = -1;
+        }
+    }
     close(fd);
     return rc;
 }
@@ -167,6 +201,9 @@ static long now_ms(void) {
 }
 
 int main(void) {
+    /* A control write to a peer that closed early must never kill the relay. */
+    signal(SIGPIPE, SIG_IGN);
+
     const char *pe = getenv("DEMOD_DCF_PORT");
     int port = (pe && *pe) ? atoi(pe) : DCF_DEFAULT_PORT;
 

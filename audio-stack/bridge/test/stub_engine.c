@@ -72,8 +72,17 @@ int main(int argc, char **argv) {
         char buf[1024];
         ssize_t n;
         FILE *log = fopen(log_path, "a");
+        /* Reply one JSON line per received command line, like the real
+         * orchestrator (DeMoD.Control's per-op {"ok":true} reply). The bridge
+         * now blocks reading this reply before closing (serializing ops), so a
+         * silent stub would stall it — this keeps the fixture faithful. */
         while ((n = read(cs, buf, sizeof(buf))) > 0) {
             if (log) { fwrite(buf, 1, (size_t)n, log); fflush(log); }
+            for (ssize_t i = 0; i < n; i++) {
+                if (buf[i] == '\n') {
+                    (void)!write(cs, "{\"ok\":true}\n", 12);
+                }
+            }
         }
         if (log) fclose(log);
         close(cs);

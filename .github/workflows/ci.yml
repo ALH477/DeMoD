@@ -33,6 +33,11 @@ jobs:
       - name: DCF over WebSocket (browser path — dcf-ws-bridge relay)
         run: bash audio-stack/bridge/test/ws_loopback.sh
 
+      - name: Real-engine E2E (browser path drives orchestrator + demod-rt)
+        # Self-skips (exit 0) where JACK + RT privileges are absent, as on most
+        # CI runners; a full pass needs an audio-capable RT host. See test/README.md.
+        run: bash audio-stack/bridge/test/engine_e2e.sh
+
       - name: Headless smoke — every example renders and exits clean
         run: |
           nix develop --command bash -eu -c '
