@@ -26,7 +26,8 @@ under the **DEMOD DUAL LICENSE** (`audio-stack/LICENSE`):
 
 - **Option 1 — GPLv3 (version 3 only)**, SPDX `GPL-3.0-only`, for open-source, personal,
   educational, and non-commercial use.
-- **Option 2 — Commercial**, for closed-source / commercial hardware use.
+- **Option 2 — Commercial**, for closed-source / commercial hardware use. To purchase a
+  paid commercial license, email **alh477@proton.me**.
 
 Every source file under `audio-stack/` carries `SPDX-License-Identifier: GPL-3.0-only`.
 
@@ -38,7 +39,8 @@ under the same **DEMOD DUAL LICENSE** (`quanta/LICENSE`):
 
 - **Option 1 — GPLv3 (version 3 only)**, SPDX `GPL-3.0-only`, for open-source, personal,
   educational, and non-commercial use.
-- **Option 2 — Commercial**, for closed-source / commercial use.
+- **Option 2 — Commercial**, for closed-source / commercial use. To purchase a paid
+  commercial license, email **alh477@proton.me**.
 
 Every C source under `quanta/` carries `SPDX-License-Identifier: GPL-3.0-only`. The one
 exception is the framework-facing browser panel **`quanta/ui/quanta_panel.lua`**, which is

@@ -356,6 +356,11 @@ This repo has **two independently-licensed parts** — full details in `LICENSIN
 
 Third-party components keep their own licenses (see `THIRD_PARTY_LICENSES.md`).
 
+**Commercial licenses.** The dual-licensed engines (`audio-stack/` and `quanta/`) are
+available under a **paid commercial license** (DCSL) as an alternative to GPLv3 — use
+them in closed-source or proprietary products without the copyleft obligations. To
+purchase or discuss terms, email **alh477@proton.me**.
+
 Build whatever you want on the framework, open or closed. That is the point.
 
 ## Brand and trade dress
