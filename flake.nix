@@ -170,6 +170,31 @@
           '');
         };
 
+        # Sibling shells on the same SDK (see shell/). Each is DCF-enabled so its
+        # mesh/telemetry surfaces work; set DEMOD_DCF_HOST/_PORT to attach a mesh,
+        # else they run their simulator. `nix run .#dash|.#gcs|.#rov`.
+        apps.dash = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-dash" ''
+            export DEMOD_SHELL_DIR=${./shell}/ DEMOD_DASH_DIR=${./dash}/
+            exec ${demod-ui-dcf}/bin/demod-ui ${./dash}/main.lua "$@"
+          '');
+        };
+        apps.gcs = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-gcs" ''
+            export DEMOD_SHELL_DIR=${./shell}/ DEMOD_GCS_DIR=${./gcs}/
+            exec ${demod-ui-dcf}/bin/demod-ui ${./gcs}/main.lua "$@"
+          '');
+        };
+        apps.rov = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-rov" ''
+            export DEMOD_SHELL_DIR=${./shell}/ DEMOD_ROV_DIR=${./rov}/
+            exec ${demod-ui-dcf}/bin/demod-ui ${./rov}/main.lua "$@"
+          '');
+        };
+
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             # framework

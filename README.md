@@ -244,9 +244,16 @@ panel to a networked, RISC-V, real-time-audio rig, all from the same Lua scripts
 **Beyond audio:** the same skeleton — a supervisor pinning a real-time loop, a shared-memory
 setpoint/telemetry bus, and a deterministic mesh transport — generalizes to vehicle autonomy
 (companion computer / ground station / telemetry mesh). What that would and wouldn't be — and the
-safety line — is written up in [`docs/vehicle-feasibility.md`](docs/vehicle-feasibility.md). A working
-first cut ships in [`auto/`](auto/) — **DeMoD Auto**, a FOSS car head unit + vehicle-companion shell
-(speedo/tach cluster, live OBD-II telemetry, a DCF mesh companion view): `nix run .#auto`.
+safety line — is written up in [`docs/vehicle-feasibility.md`](docs/vehicle-feasibility.md). Those
+systems share a small FOSS **companion-shell SDK** ([`shell/`](shell/) — surface manager + telemetry
+provider + theme + touch), with a family of apps built on it:
+
+- [`auto/`](auto/) — **DeMoD Auto**, a car head unit (speedo/tach cluster, live OBD-II, media/EQ, a DCF companion view). `nix run .#auto`
+- [`dash/`](dash/) — a generic DCF-mesh **telemetry dashboard** (auto-gauges, scope, mesh). `nix run .#dash`
+- [`gcs/`](gcs/) — a drone **ground station** (artificial-horizon HUD, map, status; MAVLink to a real FC). `nix run .#gcs`
+- [`rov/`](rov/) — an **AUV/ROV console** (depth/heading/thrusters, sonar, DCF-over-JANUS link). `nix run .#rov`
+
+Each runs a hardware-free simulator out of the box; all are companion/HMI layers, never the safety-critical loop.
 
 ## Examples
 
