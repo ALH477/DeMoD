@@ -244,7 +244,9 @@ panel to a networked, RISC-V, real-time-audio rig, all from the same Lua scripts
 **Beyond audio:** the same skeleton — a supervisor pinning a real-time loop, a shared-memory
 setpoint/telemetry bus, and a deterministic mesh transport — generalizes to vehicle autonomy
 (companion computer / ground station / telemetry mesh). What that would and wouldn't be — and the
-safety line — is written up in [`docs/vehicle-feasibility.md`](docs/vehicle-feasibility.md).
+safety line — is written up in [`docs/vehicle-feasibility.md`](docs/vehicle-feasibility.md). A working
+first cut ships in [`auto/`](auto/) — **DeMoD Auto**, a FOSS car head unit + vehicle-companion shell
+(speedo/tach cluster, live OBD-II telemetry, a DCF mesh companion view): `nix run .#auto`.
 
 ## Examples
 

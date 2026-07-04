@@ -156,6 +156,18 @@
           '');
         };
 
+        # `nix run .#auto` — DeMoD Auto, the FOSS car head-unit + vehicle-companion
+        # shell (see auto/). Uses the DCF-enabled UI so the companion surface has
+        # dm.dcf; python3 on PATH for the OBD-II reader (auto/vehicle/obd2-reader.py).
+        apps.auto = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-auto" ''
+            export DEMOD_AUTO_DIR=${./auto}/
+            export PATH=${pkgs.python3}/bin:$PATH
+            exec ${demod-ui-dcf}/bin/demod-ui ${./auto}/main.lua "$@"
+          '');
+        };
+
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             # framework
