@@ -20,6 +20,10 @@ bash audio-stack/bridge/test/loopback.sh      # dm.dcf (UDP)  -> bridge -> stub
 bash audio-stack/bridge/test/ws_loopback.sh   # browser (WS)  -> bridge -> stub
 ```
 
+`loopback.sh` also runs `examples/remote_client.lua` headless to assert the UI-facing
+`dm.dcf.status()` / `poll_event()` events fire — a `connected` notification and an accepted
+`op_reply` (the stub replies `{"ok":true}`). The **loud** rejection path is Tier 2's job.
+
 ## Tier 2 — the whole stack, against the REAL engine (`engine_e2e.sh`)
 
 `engine_e2e.sh` proves the browser path drives the **actual** engine end-to-end:
@@ -62,3 +66,6 @@ engine instance at a time.
 - `ws_client.py` — stdlib browser-style WS client (RFC6455 by hand; encodes real
   DeModFrames + DCF-Text control ops).
 - `control_probe.py` — stdlib AF_UNIX JSON-lines `get_health` probe for the orchestrator.
+- `../../../examples/remote_client.lua` — the remote-client UX (connection notification +
+  loud rejection toast, via `dm.dcf.status()`/`poll_event()`); doubles as a headless
+  self-test (`DEMOD_RC_TEST=1`), run by both tiers.

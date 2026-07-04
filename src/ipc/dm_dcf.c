@@ -47,6 +47,48 @@ static uint16_t         g_text_pid = 0;   /* 6-bit DCF-Text packet id cycle   */
 static dcf_audio_reasm_t g_reasm;         /* telemetry reassembly state       */
 static int              g_reasm_init = 0;
 
+/* ── Connection state + event queue (drives UI notifications) ───────────── */
+/* status(): "disconnected" until open(); "connecting" until the first PONG;
+ * "connected" once the engine answers; back to "disconnected" on close. Events
+ * are one-shot facts the UI drains via poll_event() to raise toasts. */
+enum { DCF_DISCONNECTED = 0, DCF_CONNECTING = 1, DCF_CONNECTED = 2 };
+enum { DCF_EV_CONNECTED = 1, DCF_EV_DISCONNECTED = 2, DCF_EV_OP_REPLY = 3 };
+/* op-reply status byte — must match demod-remote-bridge's CTL_* / 'R' frame. */
+enum { DCF_OP_OK = 0, DCF_OP_REJECTED = 1, DCF_OP_UNREACHABLE = 2 };
+
+typedef struct { uint8_t kind; uint8_t status; } dcf_event_t;
+#define DCF_EVENT_RING 32u
+static dcf_event_t g_events[DCF_EVENT_RING];
+static unsigned    g_ev_head = 0, g_ev_tail = 0;
+static int         g_conn_state = DCF_DISCONNECTED;
+
+static void dcf_push_event(uint8_t kind, uint8_t status) {
+    unsigned nh = (g_ev_head + 1u) % DCF_EVENT_RING;
+    if (nh == g_ev_tail) return;   /* full: drop oldest-safe (never block) */
+    g_events[g_ev_head].kind = kind;
+    g_events[g_ev_head].status = status;
+    g_ev_head = nh;
+}
+
+static void dcf_mark_connected(void) {
+    if (g_conn_state != DCF_CONNECTED) {
+        g_conn_state = DCF_CONNECTED;
+        dcf_push_event(DCF_EV_CONNECTED, 0);
+    }
+}
+
+static void dcf_mark_disconnected(void) {
+    if (g_conn_state != DCF_DISCONNECTED) {
+        g_conn_state = DCF_DISCONNECTED;
+        dcf_push_event(DCF_EV_DISCONNECTED, 0);
+    }
+}
+
+/* A CTRL 'R' frame is the bridge's op-result reply: payload = ['R', status]. */
+static int dcf_is_reply(const dcf_frame_t *d) {
+    return d->type == DCF_TYPE_CTRL && d->payload[0] == 'R';
+}
+
 /* Monotonic clock comes from platform/compat.h (clock_gettime on POSIX,
  * QueryPerformanceCounter on Windows) so this builds on all three OSes. */
 static uint32_t dcf_now_us(void) {
@@ -155,8 +197,9 @@ static EM_BOOL ws_onmessage(int t, const EmscriptenWebSocketMessageEvent *e, voi
         dcf_frame_t d;
         if (dcf_frame_decode(rb, &d) && d.type == DCF_TYPE_CTRL &&
             d.payload[0] == 'P' && d.payload[1] == 'O' &&
-            d.payload[2] == 'N' && d.payload[3] == 'G' && g_ping_t0 > 0.0) {
-            g_last_rtt = dcf_now_ms() - g_ping_t0;
+            d.payload[2] == 'N' && d.payload[3] == 'G') {
+            if (g_ping_t0 > 0.0) g_last_rtt = dcf_now_ms() - g_ping_t0;
+            dcf_mark_connected();   /* the engine answered -> "connected" toast */
         }
         unsigned nh = (g_ring_head + 1u) % WS_RING_FRAMES;
         if (nh == g_ring_tail) break;   /* ring full: drop (meters are latest-wins) */
@@ -170,7 +213,7 @@ static EM_BOOL ws_onerror(int t, const EmscriptenWebSocketErrorEvent *e, void *u
     (void)t; (void)e; (void)ud; return EM_TRUE;
 }
 static EM_BOOL ws_onclose(int t, const EmscriptenWebSocketCloseEvent *e, void *ud) {
-    (void)t; (void)e; (void)ud; g_ws_ready = 0; return EM_TRUE;
+    (void)t; (void)e; (void)ud; g_ws_ready = 0; dcf_mark_disconnected(); return EM_TRUE;
 }
 
 /* dm.dcf.open(engine_host, engine_port) -> bool (connection completes async) */
@@ -187,6 +230,7 @@ static int l_dcf_open(lua_State *L) {
     g_ring_head = g_ring_tail = 0;
     g_last_rtt = -1.0;
     g_ping_t0  = 0.0;
+    g_conn_state = DCF_CONNECTING;
     strncpy(g_engine_host, host, sizeof(g_engine_host) - 1);
     g_engine_host[sizeof(g_engine_host) - 1] = 0;
     g_engine_port = port;
@@ -284,6 +328,7 @@ static int l_dcf_poll(lua_State *L) {
 
         dcf_frame_t d;
         if (!dcf_frame_decode(rb, &d)) continue;
+        if (dcf_is_reply(&d)) { dcf_push_event(DCF_EV_OP_REPLY, d.payload[1]); continue; }
         if (d.type == DCF_TYPE_CTRL &&
             d.payload[0] == 'P' && d.payload[3] == 'G' &&
             (d.payload[1] == 'I' || d.payload[1] == 'O'))
@@ -307,6 +352,7 @@ static int l_dcf_close(lua_State *L) {
         g_ws = 0;
         g_ws_ready = 0;
     }
+    dcf_mark_disconnected();
     return 0;
 }
 
@@ -359,6 +405,7 @@ static int l_dcf_open(lua_State *L) {
     g_sock = fd;
     dcf_audio_reasm_init(&g_reasm);
     g_reasm_init = 1;
+    g_conn_state = DCF_CONNECTING;
     lua_pushboolean(L, 1);
     return 1;
 }
@@ -393,9 +440,12 @@ static int l_dcf_ping(lua_State *L) {
         if (d.type == DCF_TYPE_CTRL &&
             d.payload[0] == 'P' && d.payload[1] == 'O' &&
             d.payload[2] == 'N' && d.payload[3] == 'G') {
+            dcf_mark_connected();   /* the engine answered -> "connected" toast */
             lua_pushnumber(L, dcf_now_ms() - t0);
             return 1;
         }
+        /* an op-result reply -> queue it for poll_event() (loud fail on the UI). */
+        if (dcf_is_reply(&d)) { dcf_push_event(DCF_EV_OP_REPLY, d.payload[1]); continue; }
         /* not a PONG — it may be a telemetry CTRL frame; keep it. */
         if (g_reasm_init) {
             dcf_audio_packet_t pkt;
@@ -453,6 +503,8 @@ static int l_dcf_poll(lua_State *L) {
         if (n != (ssize_t)DCF_FRAME_SIZE) break; /* drained / would-block */
         dcf_frame_t d;
         if (!dcf_frame_decode(rb, &d)) continue;
+        /* an op-result reply -> queue an event (loud fail / accept on the UI). */
+        if (dcf_is_reply(&d)) { dcf_push_event(DCF_EV_OP_REPLY, d.payload[1]); continue; }
         /* skip stray ping/pong control frames */
         if (d.type == DCF_TYPE_CTRL &&
             d.payload[0] == 'P' && d.payload[3] == 'G' &&
@@ -476,17 +528,57 @@ static int l_dcf_close(lua_State *L) {
         g_sock = DM_INVALID_SOCKET;
         dm_net_cleanup(); /* balances the dm_net_init() from open (WSACleanup) */
     }
+    dcf_mark_disconnected();
     return 0;
 }
 
 #endif /* __EMSCRIPTEN__ */
 
+/* ── dm.dcf.status() -> "disconnected"|"connecting"|"connected" ─────────── */
+/* Both transports track the same state machine; this is transport-independent. */
+static int l_dcf_status(lua_State *L) {
+    const char *s = g_conn_state == DCF_CONNECTED  ? "connected"
+                  : g_conn_state == DCF_CONNECTING ? "connecting"
+                                                   : "disconnected";
+    lua_pushstring(L, s);
+    return 1;
+}
+
+/* ── dm.dcf.poll_event() -> event table | nil ──────────────────────────── */
+/* Drains one queued connection/op-reply fact so the UI can raise a toast:
+ *   {kind="connected"}                     — the engine answered (pleasant)
+ *   {kind="disconnected"}                  — the link dropped / was closed
+ *   {kind="op_reply", ok=bool, status=n}   — an op's result; ok=false is a LOUD
+ *       fail. status: 0=ok, 1=rejected by engine, 2=engine unreachable. */
+static int l_dcf_poll_event(lua_State *L) {
+    if (g_ev_tail == g_ev_head) { lua_pushnil(L); return 1; }
+    dcf_event_t e = g_events[g_ev_tail];
+    g_ev_tail = (g_ev_tail + 1u) % DCF_EVENT_RING;
+
+    lua_newtable(L);
+    const char *kind = e.kind == DCF_EV_CONNECTED    ? "connected"
+                     : e.kind == DCF_EV_DISCONNECTED ? "disconnected"
+                                                     : "op_reply";
+    lua_pushstring(L, kind); lua_setfield(L, -2, "kind");
+    if (e.kind == DCF_EV_OP_REPLY) {
+        lua_pushboolean(L, e.status == DCF_OP_OK); lua_setfield(L, -2, "ok");
+        lua_pushinteger(L, (lua_Integer)e.status); lua_setfield(L, -2, "status");
+        const char *reason = e.status == DCF_OP_REJECTED    ? "rejected by engine"
+                           : e.status == DCF_OP_UNREACHABLE ? "engine unreachable"
+                                                            : "ok";
+        lua_pushstring(L, reason); lua_setfield(L, -2, "reason");
+    }
+    return 1;
+}
+
 static const luaL_Reg dcf_funcs[] = {
-    {"open",  l_dcf_open},
-    {"ping",  l_dcf_ping},
-    {"send",  l_dcf_send},
-    {"poll",  l_dcf_poll},
-    {"close", l_dcf_close},
+    {"open",       l_dcf_open},
+    {"ping",       l_dcf_ping},
+    {"send",       l_dcf_send},
+    {"poll",       l_dcf_poll},
+    {"poll_event", l_dcf_poll_event},
+    {"status",     l_dcf_status},
+    {"close",      l_dcf_close},
     {NULL, NULL},
 };
 

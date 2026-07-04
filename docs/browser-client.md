@@ -78,7 +78,30 @@ dm.dcf.open("192.168.1.50", 47000)  -- the *engine's* UDP endpoint (sent to the 
 assert(dm.dcf.ping())               -- non-blocking in the browser: sends PING now, the
                                      --   RTT is filled in on the pong (0 until the first)
 dm.dcf.poll()                        -- drains meter/telemetry frames each frame
+
+-- Connection state + notifications:
+dm.dcf.status()                      -- "disconnected" | "connecting" | "connected"
+for ev in function() return dm.dcf.poll_event() end do
+  if ev.kind == "connected"    then notify_ok("Connected to engine")        -- pleasant
+  elseif ev.kind == "op_reply" and not ev.ok then
+                                    notify_err("Rejected: " .. ev.reason)    -- LOUD fail
+  end
+end
 ```
+
+### Connection + failure notifications
+
+`dm.dcf` surfaces two UI-facing facts so a client can show a **pleasant connection
+notification** and a **loud failure**:
+
+- `dm.dcf.status()` → the live link state (`connecting` → `connected` on the first pong).
+- `dm.dcf.poll_event()` → drains one queued event: `{kind="connected"}` (the engine
+  answered), `{kind="disconnected"}`, or `{kind="op_reply", ok=bool, status, reason}`. An
+  `op_reply` with `ok=false` is the loud fail — the engine **rejected** the control op
+  (`status=1`) or was **unreachable** (`status=2`). This works because the bridge now
+  replies each op's result back to the UI as a small CTRL `'R'` frame (it already reads the
+  orchestrator's per-op reply for serialization). `examples/remote_client.lua` is a complete
+  demo: a green "Connected" toast and a red rejection toast, plus a headless self-test.
 
 `dm.dcf.open(host, port)` names the **engine**, not the bridge — the bridge URL comes
 from the page (above). The transport is otherwise API-identical to the native path; only

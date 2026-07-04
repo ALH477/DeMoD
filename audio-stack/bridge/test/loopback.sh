@@ -75,6 +75,15 @@ else
     exit 1
 fi
 
+echo "== [6/6] connection notification + op-reply event (dm.dcf.status/poll_event) =="
+# remote_client asserts it saw a 'connected' event and an accepted op-reply
+# (the stub replies {"ok":true}); the loud-fail path is engine_e2e.sh's job.
+run "SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+     DEMOD_DCF_PORT='$PORT' DEMOD_RC_TEST=1 \
+     DEMOD_RC_OP='{\"v\":1,\"op\":\"ping\"}' DEMOD_RC_EXPECT=ok \
+     timeout 20 ./demod-ui examples/remote_client.lua"
+[ $? -eq 0 ] || { echo "FAIL: remote_client selftest (connected + op_reply)"; exit 1; }
+
 echo
-echo "PASS: DCF remote transport loopback (ping + control op + telemetry)"
+echo "PASS: DCF remote transport loopback (ping + control op + telemetry + events)"
 exit 0

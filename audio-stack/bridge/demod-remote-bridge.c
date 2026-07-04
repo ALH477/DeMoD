@@ -54,20 +54,26 @@ static const char *control_path(void) {
     return (p && *p) ? p : "/run/demod/control.sock";
 }
 
+/* control_send_line() result — also the status byte in the 'R' reply frame the
+ * UI sees, so dm.dcf can raise a loud, specific failure toast. */
+#define CTL_OK        0   /* orchestrator applied the op (or replied ok / silent) */
+#define CTL_REJECTED  1   /* orchestrator replied {"ok":false}                    */
+#define CTL_UNREACH   2   /* couldn't reach/write the control socket              */
+
 static int control_send_line(const char *json, size_t len) {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
+    if (fd < 0) return CTL_UNREACH;
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, control_path(), sizeof(addr.sun_path) - 1);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) { close(fd); return -1; }
-    int rc = 0;
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) { close(fd); return CTL_UNREACH; }
+    int rc = CTL_OK;
     /* MSG_NOSIGNAL so a peer that closed early can't raise SIGPIPE here. */
     if (send(fd, json, len, MSG_NOSIGNAL) == (ssize_t)len)
         (void)!send(fd, "\n", 1, MSG_NOSIGNAL);
     else
-        rc = -1;
+        rc = CTL_UNREACH;
 
     /* Wait for the orchestrator's reply line before closing — the control
      * protocol is one JSON reply per command, emitted AFTER the op is applied.
@@ -79,7 +85,7 @@ static int control_send_line(const char *json, size_t len) {
      * write to a half-closed socket (EPIPE) and unserialized bursts; the stub
      * was silent so it never showed. Bounded by a recv timeout so a silent or
      * absent server can never stall the relay. */
-    if (rc == 0) {
+    if (rc == CTL_OK) {
         struct timeval tv = { .tv_sec = 0, .tv_usec = 250000 };
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         char reply[256];
@@ -94,7 +100,7 @@ static int control_send_line(const char *json, size_t len) {
         }
         if (off > 0 && strstr(reply, "\"ok\":false")) {
             fprintf(stderr, "[bridge] control op rejected: %.*s\n", (int)off, reply);
-            rc = -1;
+            rc = CTL_REJECTED;
         }
     }
     close(fd);
@@ -259,10 +265,22 @@ int main(void) {
             /* DCF-Text (DATA) fragments -> reassemble a JSON op. */
             dcf_text_packet_t msg;
             if (dcf_text_reasm_push(&reasm, rb, &msg) == DCF_TEXT_REASM_MESSAGE) {
-                if (control_send_line((const char *)msg.payload, msg.payload_len) == 0)
+                int st = control_send_line((const char *)msg.payload, msg.payload_len);
+                if (st == CTL_OK)
                     fprintf(stderr, "[bridge] op -> control.sock (%u B)\n", msg.payload_len);
                 else
-                    fprintf(stderr, "[bridge] op dropped (control.sock unavailable)\n");
+                    fprintf(stderr, "[bridge] op %s\n",
+                            st == CTL_REJECTED ? "rejected by engine" : "dropped (control.sock unavailable)");
+                /* Reply the result to the UI as a CTRL 'R' frame so dm.dcf can
+                 * raise a loud, specific failure (or confirm acceptance). */
+                dcf_frame_t r;
+                dcf_frame_init(&r, 1u, DCF_TYPE_CTRL, d.seq, DCF_BRIDGE_SRC_ID, d.src_id);
+                r.payload[0] = 'R'; r.payload[1] = (uint8_t)st;
+                r.payload[2] = 0; r.payload[3] = 0;
+                r.timestamp_us = now_us();
+                uint8_t rbuf[DCF_FRAME_SIZE];
+                dcf_frame_encode(&r, rbuf);
+                sendto(sock, rbuf, DCF_FRAME_SIZE, 0, (struct sockaddr *)&src, sl);
             }
         }
 

@@ -105,7 +105,7 @@ echo "  engine health: $H2"
 echo "$H2" | grep -q "rt_status=running" || { echo "FAIL: demod-rt not running"; exit 1; }
 [ "${CB2:-0}" -gt "${CB1:-0}" ] 2>/dev/null || { echo "FAIL: JACK callbacks did not advance ($CB1 -> $CB2)"; exit 1; }
 
-echo "== [6/6] confirm the control op reached the REAL orchestrator (reply round-trip) =="
+echo "== [6/7] confirm the control op reached the REAL orchestrator (reply round-trip) =="
 if grep -q "control op rejected" "$WORK/bridge.log"; then
     echo "  orchestrator rejected the invalid op and the bridge read the reply:"
     grep "control op rejected" "$WORK/bridge.log" | tail -1 | sed 's/^/    /'
@@ -115,9 +115,24 @@ else
     exit 1
 fi
 
+echo "== [7/7] the UI's loud fail: dm.dcf surfaces the rejection as an op-reply event =="
+# remote_client (native dm.dcf) connects to the real engine, sends an invalid op,
+# and must raise a 'connected' notification + an op_reply(ok=false) — the loud fail.
+# clean first: toggling -DDEMOD_DCF doesn't invalidate .o files, so a prior
+# plain `make` would leave dm.dcf unregistered (same gotcha as loopback.sh).
+( cd "$ROOT" && nix develop --command bash -c "make clean >/dev/null 2>&1; make DCF=1 >/dev/null 2>&1" ) \
+    || { echo "FAIL: demod-ui DCF=1 build"; exit 1; }
+DEMOD_DCF_HOST=127.0.0.1 DEMOD_DCF_PORT="$PORT" DEMOD_RC_TEST=1 \
+    DEMOD_RC_OP='{"v":1,"op":"__loud_fail_probe__"}' DEMOD_RC_EXPECT=fail \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+    timeout 20 "$ROOT/demod-ui" examples/remote_client.lua 2>&1 | grep -E "\[toast\]|PASS|FAIL"
+rc=${PIPESTATUS[0]}
+[ "$rc" -eq 0 ] || { echo "FAIL: remote_client did not surface the loud fail (rc=$rc)"; exit 1; }
+
 echo
 echo "PASS: browser path drives the REAL engine"
 echo "  - PONG + real meter telemetry over the WebSocket relay"
 echo "  - live demod-rt on JACK (callbacks $CB1 -> $CB2)"
 echo "  - a control op round-tripped to the real orchestrator (reply read by the bridge)"
+echo "  - the UI raised a 'connected' notification + a loud op_reply(ok=false) rejection"
 exit 0
