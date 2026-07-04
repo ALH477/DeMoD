@@ -75,6 +75,27 @@
               "demod-orchestrator" ./audio-stack/orchestrator { demod_bt = null; };
           in pkgs.haskell.lib.compose.appendConfigureFlags [ "--flag=-bt-midi" ] base;
 
+        # ── The quanta compiler (GPLv3-only OR commercial) ───────────
+        # Analysis-to-synthesis codec: matching-pursuit analyzer -> QSC score ->
+        # Faust-freeze (decoder is a pure static Faust program). Separate program
+        # from the framework; see quanta/ and LICENSING.md. Builds three CLIs with
+        # a plain gcc Makefile — no JACK, no framework dependency.
+        quanta = pkgs.stdenv.mkDerivation {
+          pname = "demod-quanta";
+          version = "0.1.0";
+          src = ./quanta;
+          buildPhase = "make";
+          installPhase = ''
+            mkdir -p $out/bin
+            cp bin/quanta-analyzer bin/quanta-render bin/quanta-freeze $out/bin/
+          '';
+          meta = {
+            description = "DeMoD Quanta — acoustic-quanta analyzer / Faust freeze compiler";
+            license = pkgs.lib.licenses.gpl3Only;
+            platforms = pkgs.lib.platforms.linux;
+          };
+        };
+
         # ── DCF (HydraMesh/UDP) remote transport ─────────────────────
         # Optional: run the engine on another box, driven over UDP. Uses the
         # vendored HydraMesh codec headers (LGPL-3.0, third_party/hydramesh).
@@ -132,7 +153,7 @@
         packages = {
           default = demod-ui;
           inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf
-                  demod-remote-bridge dcf-ws-bridge;
+                  demod-remote-bridge dcf-ws-bridge quanta;
 
           # Portable single-file build of the framework (bundles the nix closure).
           appimage = nix-appimage.lib.${system}.mkAppImage {
@@ -195,6 +216,16 @@
           '');
         };
 
+        # `nix run .#quanta` — the Quanta score-browser panel on the framework host
+        # (see quanta/ui/quanta_panel.lua; DCF ops stubbed, so plain demod-ui). The
+        # analyzer/render/freeze CLIs are the `quanta` package: `nix build .#quanta`.
+        apps.quanta = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-quanta-panel" ''
+            exec ${demod-ui}/bin/demod-ui ${./quanta}/ui/quanta_panel.lua "$@"
+          '');
+        };
+
         # `nix run .#check` — the pre-push gate (= ./dev check, against the tree).
         apps.check = {
           type = "app";
@@ -217,8 +248,10 @@
             # audio stack (engine + orchestrator)
             cmake ninja jack2
             ghc cabal-install
-            # fonts (make font)
-            python3 curl gzip
+            # quanta codec: Faust (freeze -> .dsp) + numpy (verification metrics)
+            faust
+            # fonts (make font) + quanta metrics (numpy)
+            (python3.withPackages (ps: [ ps.numpy ])) curl gzip
             # dev CLI: fmt/lint (stylua+clang-tools), compiledb (bear), watch (entr),
             # LSP (lua-language-server + clangd from clang-tools), completion (bash-completion)
             stylua clang-tools lua-language-server bear entr bash-completion
@@ -232,6 +265,7 @@
             echo " ./dev shot <target> [frame]   — headless screenshot -> PNG"
             echo " ./dev test <name|all> · fmt|lint · doctor · watch · compiledb"
             echo " make / make test / make font   ·   see DEVELOPING.md"
+            echo " (cd quanta && make test)       — quanta null + M0 tonal gates"
             echo "═══════════════════════════════════════════"
             # tab-completion for ./dev
             [ -n "''${BASH_VERSION:-}" ] && [ -f completions/dev.bash ] && \

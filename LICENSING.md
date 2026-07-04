@@ -30,6 +30,22 @@ under the **DEMOD DUAL LICENSE** (`audio-stack/LICENSE`):
 
 Every source file under `audio-stack/` carries `SPDX-License-Identifier: GPL-3.0-only`.
 
+## The quanta compiler — GPLv3-only OR commercial (dual)
+
+Everything under **`quanta/`** — the **DeMoD Quanta** analysis-to-synthesis codec
+(`quanta-analyzer` / `-render` / `-freeze` and the QSC score format) — is dual-licensed
+under the same **DEMOD DUAL LICENSE** (`quanta/LICENSE`):
+
+- **Option 1 — GPLv3 (version 3 only)**, SPDX `GPL-3.0-only`, for open-source, personal,
+  educational, and non-commercial use.
+- **Option 2 — Commercial**, for closed-source / commercial use.
+
+Every C source under `quanta/` carries `SPDX-License-Identifier: GPL-3.0-only`. The one
+exception is the framework-facing browser panel **`quanta/ui/quanta_panel.lua`**, which is
+**MPL-2.0** (UI layer, one-way compatible into the MPL framework). A generated frozen `.dsp`
+is the property of the score owner. Like the audio stack, quanta is a **separate program**
+from the framework — the framework has no build dependency on it.
+
 ## Why the split is clean
 
 The framework (MPL) and the audio stack (GPLv3) are **separate programs** communicating
@@ -72,6 +88,8 @@ not committed), and the HydraMesh DCF codec headers (LGPL-3.0, vendored in
 |------|------|
 | root framework (`src/`, `include/`, `examples/`, `tools/`, `tests/`, Lua) | `MPL-2.0` |
 | `audio-stack/**` (engine + orchestrator) | `GPL-3.0-only` (or commercial) |
+| `quanta/**` (analyzer/render/freeze + QSC) | `GPL-3.0-only` (or commercial) |
+| `quanta/ui/quanta_panel.lua` (framework panel) | `MPL-2.0` |
 | `src/ipc/dm_dcf.c`, `audio-stack/bridge/**`, `third_party/hydramesh/**` (DCF, opt-in) | `LGPL-3.0-only` |
 | `src/crypto/monocypher*` | `CC0-1.0 OR BSD-2-Clause` |
 | `src/db/streamdb.*` | `LGPL-2.1-or-later` |

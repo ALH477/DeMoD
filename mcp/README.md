@@ -30,18 +30,22 @@ orchestrator control socket — `$DEMOD_CONTROL_SOCK` or `/run/demod/control.soc
 
 | Tool | What it does |
 |------|--------------|
-| `demod_build` | `nix build .#<pkg>` (demod-ui, demod-rt, demod-orchestrator, demod-remote-bridge, dcf-ws-bridge, demod-ui-dcf) |
+| `demod_build` | `nix build .#<pkg>` (demod-ui, demod-rt, demod-orchestrator, demod-remote-bridge, dcf-ws-bridge, demod-ui-dcf, quanta) |
 | `demod_render` | Render an example UI headless (`DEMOD_SHOT`) and return a **PNG** the agent can see |
 | `demod_smoke` | Boot an example headless and confirm no Lua errors |
 | `demod_test` | Run a bridge harness (`loopback` / `ws_loopback` / `engine_e2e`) → PASS/FAIL/SKIP |
+| `demod_quanta_compile` | **Quanta codec**: compile a WAV → matching-pursuit `.qsc` score → frozen Faust `.dsp`; reports atoms/voices/residual + artifact paths |
+| `demod_quanta_verify` | Run the quanta release gates — the null test (frozen Faust vs C reference, ≤ −120 dBFS) + the M0 tonal LSD gate → PASS/FAIL |
+| `demod_quanta_render` | Render the quanta score-browser panel headless → **PNG** (optionally of a freshly compiled WAV) |
 | `demod_stack_up` | Bring up a real rig (orchestrator + demod-rt on JACK via `pw-jack`) that the `demod_engine_*` tools then target by default; SKIPs cleanly without JACK/RT |
 | `demod_stack_down` | Tear that rig down |
 | `demod_engine_health` | A live orchestrator's `get_health` (demod-rt liveness, callbacks, xruns, children) |
 | `demod_engine_list_slots` | The engine's FX/synth slot table |
 | `demod_engine_op` | Send one control op — `set_bpm`, `set_param`, `load_fx`, `bypass_fx`, `synth.*`, `set_slot_*` — and return the reply |
 
-**Resources:** `demod://skill` (the `SKILL.md` `dm.*` API reference) and `demod://control-ops`
-(the control-socket op vocabulary), so an agent writing Lua or issuing ops has the reference inline.
+**Resources:** `demod://skill` (the `SKILL.md` `dm.*` API reference), `demod://control-ops`
+(the control-socket op vocabulary), and `demod://quanta-spec` (the Quanta QSC/codec spec), so an
+agent writing Lua, issuing ops, or driving the codec has the reference inline.
 
 Engine writes are whitelisted; unknown ops are refused. `demod_stack_up` will spawn a real rig for
 you where JACK + RT privileges exist (on a dev box, JACK comes from a running PipeWire via
