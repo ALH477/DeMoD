@@ -83,16 +83,17 @@
         # ── The quanta compiler (GPLv3-only OR commercial) ───────────
         # Analysis-to-synthesis codec: matching-pursuit analyzer -> QSC score ->
         # Faust-freeze (decoder is a pure static Faust program). Separate program
-        # from the framework; see quanta/ and LICENSING.md. Builds three CLIs with
-        # a plain gcc Makefile — no JACK, no framework dependency.
+        # from the framework; see quanta/ and LICENSING.md. Builds five CLIs with
+        # a plain gcc Makefile — no JACK, no framework dependency: the offline
+        # analyzer/render/freeze plus the streaming stream/stream-decode profile.
         quanta = pkgs.stdenv.mkDerivation {
           pname = "demod-quanta";
-          version = "0.1.0";
+          version = "0.2.0-streaming";
           src = ./quanta;
           buildPhase = "make";
           installPhase = ''
             mkdir -p $out/bin
-            cp bin/quanta-analyzer bin/quanta-render bin/quanta-freeze $out/bin/
+            cp bin/quanta-analyzer bin/quanta-render bin/quanta-freeze bin/quanta-stream bin/quanta-stream-decode $out/bin/
           '';
           meta = {
             description = "DeMoD Quanta — acoustic-quanta analyzer / Faust freeze compiler";
@@ -197,7 +198,7 @@
             "Soft-real-time DeMoD audio engine + Quanta codec + WASM UI + HydraMesh DCF-Audio HLS monitor. DEV/soft-RT only — not representative of real hardware.";
           "org.opencontainers.image.source"      = "https://github.com/ALH477/DeMoD";
           "org.opencontainers.image.licenses"    = "MPL-2.0 AND GPL-3.0-only AND LGPL-3.0-only";
-          "org.opencontainers.image.version"     = "0.1.0";
+          "org.opencontainers.image.version"     = "0.2.0";
           "com.demod.soft-rt"                    = "true";
         };
 

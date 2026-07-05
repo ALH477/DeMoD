@@ -30,7 +30,8 @@ if cmd == 'null':
     rms = dbfs(float(np.sqrt(np.mean(d**2))))
     exact = np.array_equal(a[:n], b[:n])
     print(f"null: peak {pk:+.1f} dBFS  rms {rms:+.1f} dBFS  bit-exact={exact}")
-    sys.exit(0 if pk <= -120.0 else 1)
+    gate = -float(sys.argv[4]) if len(sys.argv) > 4 else -120.0
+    sys.exit(0 if pk <= gate else 1)
 
 if cmd == 'lsd':
     s, r = load(sys.argv[2]), load(sys.argv[3])

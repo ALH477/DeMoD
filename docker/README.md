@@ -78,9 +78,22 @@ The image entrypoint dispatches on its first argument (default `serve`):
 | `render <in> [out]` | Quanta `.qsc`/`.wav` → `${OUT}/out.wav` (lossless) |
 | `analyze <in.wav> [out.qsc]` | Quanta matching-pursuit analyzer |
 | `freeze <in.qsc> [out.dsp]` | Quanta Faust-freeze compiler (`--verify`) |
+| `qss-encode <in.wav> [out.qss]` | Quanta **streaming** encoder: WAV → QSS packet stream (+ bridge `.qsc`) |
+| `qss-decode <in.qss> [out.wav]` | Quanta **streaming** decoder: QSS → WAV (nulls bit-exact vs `render`) |
 | `doctor` | RT-privilege report + soft-RT latency table |
 | `test` | `make test` (needs faust + numpy, present in the fat image) |
 | `shell` | drop into `nix develop` (fat dev image) |
+
+### Streaming profile (QSS)
+
+`qss-encode` / `qss-decode` exercise Quanta's **v0.2 streaming profile**: a
+commit-horizon block matching-pursuit encoder that emits a self-delimiting,
+CRC-guarded **QSS** packet container (~86 kbps, Rice + quantization entropy coding)
+whose streaming decoder reconstructs **bit-exact** against the offline `render`
+path. It complements the lossless full-band WAV render — QSS is the low-bitrate,
+transport-shaped format that re-anchors on packet loss (a corrupted packet drops
+and the stream re-syncs). See [`../quanta/docs/SPEC.md`](../quanta/docs/SPEC.md)
+Appendix S.
 
 ## Build & run
 
@@ -188,7 +201,7 @@ image *links* (as Nix-built binaries) components under different licenses:
 
 | Component | License | Artifacts |
 |-----------|---------|-----------|
-| `quanta` codec | GPL-3.0-only OR DCSL | `quanta-{analyzer,render,freeze}` |
+| `quanta` codec | GPL-3.0-only OR DCSL | `quanta-{analyzer,render,freeze,stream,stream-decode}` |
 | `demod-rt`, orchestrator, **`demod-dcf-audiocast`** | GPL-3.0-only OR DCSL | `demod-rt`, `demod-orchestrator`, `demod-dcf-audiocast` |
 | `demod-remote-bridge`, `dcf-ws-bridge`, `dm_dcf` | LGPL-3.0-only | the DCF bridges |
 | HydraMesh `dcf-ffmpeg` / `dcf-radio` | GPL/LGPL (ffmpeg) + LGPL | the HLS server |

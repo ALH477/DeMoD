@@ -273,4 +273,140 @@ Gabor, D. (1946). *Theory of Communication.* — acoustic quanta / logons. · Ma
 
 ---
 
+## Appendix S. Streaming Profile & QSS Container (v0.2)
+
+`demod-quanta` is an **asymmetric codec**: the frozen decoder is real-time by
+construction, while the offline analyzer performs a greedy *global* matching
+pursuit that is non-causal (largest scale = 341 ms) and iterative. The
+streaming profile trades encode fidelity for a **bounded-latency causal
+encode**, producing the framed **QSS** container. Decode is real-time in every
+mode; a streaming-encoded QSS bridges to a byte-exact QSC and thus to the same
+frozen-Faust decoder.
+
+### S.1 Encoder — commit-horizon block matching pursuit
+The signal is swept by a write head in hops of `hop` samples. A commit point
+trails the head by `L = cap + active`; pursuit runs over the working set
+`[comm, head − cap]`. Three properties make this behave like the offline
+pursuit within a latency bound:
+
+1. **Scale cap** (`--lat-scale cap`) bounds the largest atom and therefore the
+   algorithmic latency floor at `cap` samples.
+2. **Coarse-to-fine maturity.** A region is eligible for placement only once
+   *all* scales ≤ `cap` have fully arrived there (onset `u` s.t. `u + cap ≤
+   head`), not merely the scale being tried (`u + s ≤ head`). Without this,
+   short-scale frames mature first and greedy MP tiles a sustained partial with
+   dozens of short grains instead of one long atom (~20 dB less efficient per
+   atom). With it, long and short scales compete on equal footing and the long
+   atoms win first — matching the offline pick order.
+3. **Working set** (`--active`) widens the re-pursued window before its trailing
+   edge freezes. `active → whole signal` reproduces the offline pursuit exactly;
+   narrower `active` lowers latency at a fidelity cost.
+
+At end-of-stream (`head = N`) a **flush** relaxes maturity to per-scale
+(`u + s ≤ head`) so the final `cap` samples, which never mature under the normal
+rule, are still modeled.
+
+**Rate control.** Offline pursues to an amplitude floor; streaming caps atoms
+per hop via `--rate` (atoms/s), which sets the bitrate. Dense content at a
+fixed rate degrades gracefully.
+
+**Causal residual.** The offline global-scalar trim is not signal-stable once
+made causal (it swings −0.8 to −5.1 dB with spectrum, since band-overlap
+coherence depends on where the energy sits). The streaming residual instead
+applies a **per-frame trim** `√(E_res_frame / gᵀCg)`, where `C` is the fixed
+24×24 band-coherence matrix (`qsc_band_coherence`, `diag(C) = ρ²`) and `gᵀCg`
+predicts synthesized frame energy to <1%. This is causal *and* strictly better
+than the offline scalar. Residual frames freeze one commit behind the atom
+stream (their env interpolates `f0 → f0+1`).
+
+**Online voice assignment.** Committed atoms are first-fit assigned to voices
+at commit time; overflow past `P_max = 64` culls the lowest-priority atom, whose
+waveform is returned to the residual before that region's residual freezes, so
+energy accounting stays closed.
+
+### S.2 Latency model
+- Atom stream latency floor: `cap` (85 ms @ 4096, 43 ms @ 2048, 21 ms @ 1024).
+- Freeze delay behind head: `L = cap + active`.
+- Residual adds one `residual_hop` (256 samples ≈ 5.3 ms) for the envelope
+  interpolation frontier.
+- **Presets:** `live` (cap 1024 / active 2048 / 1500 a·s⁻¹), `near`
+  (2048 / 4096 / 1100 a·s⁻¹), `relaxed` (4096 / 8192 / 700 a·s⁻¹). Each preset's
+  default atom rate scales down with cap: longer atoms are more efficient, so a
+  lower rate keeps the 64-voice working set from saturating (over-placing dense
+  long atoms otherwise culls them into the residual). More latency thus buys
+  lower bitrate at comparable atom fidelity rather than degrading it.
+
+### S.3 Fidelity/latency tradeoff (honest)
+Sustained-tonal content (partials ringing ≫ `cap`) is the **worst case**: the
+efficient representation needs windows longer than the latency budget, so the
+commit horizon forecloses it. On the tonal corpus, pursuit residual is ≈ −28 dB
+at 85 ms vs the offline −44 dB, narrowing toward offline only as `active`
+approaches the ring-out time. Percussive / transient / speech-like content
+(localized energy, short atoms sufficient) fares far better and is the profile's
+intended use. The scale cap alone is *not* the limit (offline restricted to
+`cap = 1024` still reaches −49 dB with enough atoms); the cost is committing
+atoms before a sustained partial has been fully observed.
+
+### S.4 QSS container (big-endian; DCF convention)
+**Stream header (40 bytes):** `magic` (`'QSS2'` coded / `'QSS1'` legacy uncompressed)
+· `sample_rate` · `source_len` · `cap` · `hop` · `active` · `band_count` ·
+`residual_hop` · `noise_seed` · `flags` · `CRC-16/CCITT over the first 32 bytes`.
+
+**Packet (one per commit hop, self-delimiting).** Plaintext framing wraps a
+Rice-coded body so packets stay independently seekable/verifiable:
+`sync 0xA55A` · `hop_index u32` · `flags u16` · `n_atoms u16` · `n_res u16` ·
+`body_len u16` · `coded_body[body_len]` · `CRC-16/CCITT over hop_index…body`.
+
+**Coded body (MSB-first bit stream).** Each field is a Rice block: a 5-bit
+selector `k` (chosen to minimize block bits) then `n` Rice(k) codes with a
+zig-zag map for signed values and an escape (48 ones · 0 · 32-bit raw) for
+outliers. Blocks, in order: atom onset Δ (from the running previous onset,
+carried across packets); scale index; freq q; amp q; phase q; then residual
+frame-index Δ; residual band-gain Δ (from the previous frame's row, carried
+across packets). Prediction state (previous onset, frame index, 24-band gain
+row) lives in a `QssCoder` threaded across packets, so temporal deltas stay
+small.
+
+**Quantization (grids, spec-fixed).** freq → log grid at 2 cents
+(`QSS_FREF = 20 Hz`); amp → 0.5 dB; phase → 8 bits. Onset, scale and the
+residual envelope (0.25 dB `qsc_gain_q` domain) are coded losslessly. The
+encoder applies **closed-loop quantization**: after quantizing an atom it adds
+`unquantized − dequantized` back into the residual over the atom's support
+before that region's residual freezes, so the residual absorbs the atom
+quantization error and the decoder stays energy-consistent.
+
+**Voice is not stored.** The decoder replays the encoder's deterministic
+first-fit voice assignment (same `vfree` rule, same commit/onset order), so it
+reconstructs identical voice numbers — and therefore the identical render
+summation order — at zero bits. Atoms are dequantized to `float` (matching the
+QSC bridge's storage) before synthesis.
+
+Every packet carries an independent CRC, so a corrupt packet is dropped and the
+reader re-anchors on the next `sync` word without desync. Packets map onto DCF
+payloads (fragment across 17-byte DeModFrames, or one packet per HydraMesh
+datagram on UDP 7777). On the tonal corpus the coded stream is ≈ 86 kbps
+(near mode) vs ≈ 270 kbps uncompressed — a 3.1× reduction; a QSS→QSC bridge
+(dequantized f32 atoms + coded residual) still freezes to a byte-exact Faust
+decoder.
+
+### S.5 Streaming decoder
+`quanta-stream-decode` consumes QSS packet-by-packet with bounded memory
+(per-voice atom queues retired past the play head; a small rolling residual-gain
+record) and synthesizes sample-by-sample using the identical DSP core, table
+lookups and summation order (voices 0..P−1, then the 24-band residual, then the
+master DC-blocker). It is therefore **bit-exact** to `quanta-render`.
+
+### S.6 Streaming verification gates (in `test/run.sh`)
+- **A.** `stream-decode(QSS)` nulls against `render(QSC-bridge)` at ≤ −300 dBFS
+  (bit-exact in practice — voice re-derivation + dequant consistency).
+- **B.** QSS→QSC bridge freezes to Faust and nulls at ≤ −120 dBFS (holds with
+  quantized atoms — the Faust decoder stays deterministic).
+- **C.** A byte-flipped stream drops exactly the corrupted packet and re-anchors.
+- **D.** `qbits`/`qss2` codec round-trips (bit-I/O, Rice + escape, coded packet).
+- **E.** Coded stream ≤ 120 kbps and streaming atoms-only active-LSD within
+  ~1 dB of the offline analyzer (the residual is a noise model; on pure-tone
+  content it is attenuated at decode, as in the offline M0 path).
+
+---
+
 *DeMoD LLC · demod.ltd · This document is the normative reference for `demod-quanta` v1. Changes require a version bump and a changelog entry.*

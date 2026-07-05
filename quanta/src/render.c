@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only
+/* SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
  * quanta-render — QSC reference renderer (spec §6 semantics, exploration player)
  * Copyright (c) 2026 DeMoD LLC.
  *

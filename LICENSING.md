@@ -42,7 +42,7 @@ under the same **DEMOD DUAL LICENSE** (`quanta/LICENSE`):
 - **Option 2 — Commercial**, for closed-source / commercial use. To purchase a paid
   commercial license, email **alh477@proton.me**.
 
-Every C source under `quanta/` carries `SPDX-License-Identifier: GPL-3.0-only`. The one
+Every C source under `quanta/` carries `SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial`. The one
 exception is the framework-facing browser panel **`quanta/ui/quanta_panel.lua`**, which is
 **MPL-2.0** (UI layer, one-way compatible into the MPL framework). A generated frozen `.dsp`
 is the property of the score owner. Like the audio stack, quanta is a **separate program**

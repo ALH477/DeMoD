@@ -8,15 +8,26 @@ a lossy codec whose decoder is a Faust program.
 Part of the DeMoD instrument platform. Spec: `docs/SPEC.md`.
 
 ```
+                       offline (global MP, best fidelity)
 WAV ──► quanta-analyzer ──► score.qsc ──► quanta-render     (reference player)
                                     └───► quanta-freeze ──► frozen.dsp ──► faust
+
+                       streaming (bounded-latency causal encode; Appendix S)
+WAV ──► quanta-stream ──► stream.qss ──► quanta-stream-decode   (bit-exact to render)
+                    └──► --qsc bridge.qsc ──► quanta-freeze ──► faust
 ```
+
+The codec is **asymmetric**: decode is real-time in every mode, encode is the
+expensive side. `quanta-analyzer` is the archival/marketplace encoder;
+`quanta-stream` is a bounded-latency live/monitoring encoder producing the
+framed **QSS** container (spec Appendix S). A QSS stream decodes incrementally
+with bounded memory and bridges to a byte-exact QSC.
 
 ## Build
 
 ```
-make            # gcc, -std=c11; produces bin/quanta-{analyzer,render,freeze}
-make test       # full verification loop (needs faust + python3-numpy)
+make            # gcc, -std=c11; bin/quanta-{analyzer,render,freeze,stream,stream-decode}
+make test       # full verification loop incl. streaming gates (needs faust + python3-numpy)
 nix develop     # devshell with gcc, faust, python3+numpy   [not exercised in CI yet]
 ```
 
@@ -28,7 +39,28 @@ bin/quanta-render   score.qsc [--k N] [--g0 G --g1 G --g2 G] [--wav out.wav] [--
 bin/quanta-freeze   score.qsc -o frozen.dsp [--k N] [--verify] [--lua ui/score.lua]
 faust -lang c -double -cn quanta -a arch/minimal_c.arch frozen.dsp -o gen.c
 ./demod-ui ui/quanta_panel.lua        # score browser (demod-ui framework)
+
+# streaming profile (Appendix S)
+bin/quanta-stream        in.wav -o out.qss [--mode live|near|relaxed] [--qsc bridge.qsc]
+                         [--lat-scale N] [--active N] [--rate atoms/s] [--hop N]
+bin/quanta-stream-decode out.qss [--raw out.f64] [--wav out.wav]
 ```
+
+Latency presets carry cap-appropriate default atom rates (larger cap → longer,
+more efficient atoms → lower rate, so voice pressure stays bounded): `live`
+64 ms (cap 1024 / active 2048 / 1500 a/s / ≈98 kbps), `near` 128 ms
+(2048 / 4096 / 1100 a/s / ≈83 kbps), `relaxed` 256 ms (4096 / 8192 / 700 a/s /
+≈64 kbps). More latency buys lower bitrate at comparable fidelity. Sustained
+tonal is the worst case for the atom pursuit (see Appendix S.3); percussive and
+speech-like content fare far better.
+
+The QSS stream is entropy-coded (Rice-coded quantized atoms + delta-coded
+residual envelope): ≈ 3.1× smaller than uncompressed. Atoms are quantized to a
+2-cent / 0.5 dB / 8-bit-phase grid with closed-loop error feedback into the
+residual; the streaming atoms reconstruct to within ~1.6 dB active-LSD of the
+offline analyzer. Voice labels are not stored — the decoder replays the
+encoder's deterministic first-fit assignment, preserving bit-exact synthesis at
+zero bits.
 
 `--verify` emits unity constants instead of UI sliders so golden renders are
 deterministic (si.smoo ramps from 0 at init and would break the null test).
@@ -107,16 +139,10 @@ ui/quanta_panel.lua  demod-ui logon-diagram panel (DCF ops stubbed)
 docs/SPEC.md       full specification
 ```
 
-## License
+## Licensing
 
-The analyzer / render / freeze engine (`src/`, `include/`, `arch/`, `test/`,
-`tools/`) is **dual-licensed: GPLv3-only OR commercial** — see `LICENSE` (the
-"DEMOD DUAL LICENSE") and the repository-root `LICENSING.md`. Every C source
-carries `SPDX-License-Identifier: GPL-3.0-only`. This is a different license from
-the MPL-2.0 framework at the repository root; each part keeps its own.
-
-The `ui/quanta_panel.lua` browser panel is **MPL-2.0** (UI layer, one-way
-compatible into the MPL framework). The QSC score format is an open specification,
-and a generated frozen `.dsp` is the property of the score owner.
+Analyzer/render/freeze: **GPL-3.0-only OR DeMoD Commercial** (DCSL).
+QSC format: open specification. Panel: **MPL-2.0**. Generated `.dsp` output:
+property of the score owner. Full table + marketplace notes: `LICENSING.md`.
 
 © 2026 DeMoD LLC · DEMOD.LTD

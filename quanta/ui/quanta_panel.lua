@@ -51,10 +51,10 @@ local F_LO, F_HI = 32, 16000
 local function fy(f)
   if f < F_LO then f = F_LO elseif f > F_HI then f = F_HI end
   local t = (math.log(f) - math.log(F_LO)) / (math.log(F_HI) - math.log(F_LO))
-  return math.floor(DIA.y + DIA.h * (1 - t))
+  return DIA.y + DIA.h * (1 - t)
 end
 local function tx(samp)
-  return math.floor(DIA.x + DIA.w * (samp / score.len))
+  return DIA.x + DIA.w * (samp / score.len)
 end
 
 -- ---------------- DCF stubs (spec §9) ----------------
@@ -218,7 +218,7 @@ function on_draw()
   if S.playing then
     local dur = score.len / score.sr
     local t = (dm.time() - S.play_t0) % dur
-    local x = math.floor(DIA.x + DIA.w * (t / dur))
+    local x = DIA.x + DIA.w * (t / dur)
     dm.draw.line(x, DIA.y, x, DIA.y + DIA.h, tq[1], tq[2], tq[3], 220)
   end
 

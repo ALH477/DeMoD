@@ -12,7 +12,9 @@ This is the **development appliance** image for the
 [DeMoD / Quanta](https://github.com/ALH477/DeMoD) stack — a single Nix-built
 container that brings up:
 
-- the **Quanta codec** (`quanta-analyzer` / `quanta-render` / `quanta-freeze`)
+- the **Quanta codec** (`quanta-analyzer` / `quanta-render` / `quanta-freeze`) plus
+  the **v0.2 streaming profile** (`quanta-stream` / `quanta-stream-decode` — ~86 kbps
+  QSS packets, decoder nulls bit-exact vs the offline renderer)
 - the **JACK-soft-RT audio engine** (`demod-rt` + the Haskell `demod-orchestrator`)
 - both **DCF remote bridges** (UDP ⇄ control-socket, and WebSocket ⇄ UDP for the
   browser)
@@ -22,8 +24,8 @@ container that brings up:
 - the **browser (WASM) UI** `demod-ui`, served over HTTP
 
 The entrypoint is multi-command: `serve` (default), `stream` (HLS only),
-`quanta-only`, `render` / `analyze` / `freeze`, and `doctor` (privilege + latency
-report).
+`quanta-only`, `render` / `analyze` / `freeze`, `qss-encode` / `qss-decode`
+(streaming QSS codec), and `doctor` (privilege + latency report).
 
 ### Tags
 

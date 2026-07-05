@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only
+/* SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
  * Offline render harness for faust -lang c output (class name "quanta").
  * Usage: harness N_SAMPLES SR out.f64 out.wav
  */

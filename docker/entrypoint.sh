@@ -23,6 +23,8 @@
 #   render  <in> [out]   Quanta: .qsc|.wav → ${OUT}/out.wav (host-playable, lossless).
 #   analyze <in.wav> [out.qsc]     Quanta matching-pursuit analyzer.
 #   freeze  <in.qsc> [out.dsp]     Quanta Faust-freeze compiler.
+#   qss-encode <in.wav> [out.qss]  Quanta streaming encoder: WAV → QSS packets (+ bridge .qsc).
+#   qss-decode <in.qss> [out.wav]  Quanta streaming decoder: QSS → WAV (nulls bit-exact vs render).
 #   doctor               print the RT-privilege report + soft-RT tradeoff table.
 #   test                 run `make test` (needs faust + numpy from the flake).
 #   shell                drop into `nix develop` (fat dev image only).
@@ -36,6 +38,8 @@
 #   HTTP_PORT            WASM UI + HLS static server port (default 8080)
 #   WS_PORT              dcf-ws-bridge WebSocket port (default 7000)
 #   OUT                  WAV render output dir, host-mounted (default /out)
+#   QSS_MODE             streaming latency preset for qss-encode (live|near|relaxed, default near)
+#   QSS_RATE             streaming atom-rate for qss-encode (default 1200)
 #   DEMOD_SLIM=1         binaries are on PATH (the dockerTools runtime image), not
 #                        under result-*/ links (the fat dev image).
 #   DEMOD_WEB_SRC        read-only source of web/ (slim image); copied to a writable root.
@@ -56,11 +60,14 @@ resolve() {  # resolve <binary> <result-link>
 }
 
 Q_ANALYZER=""; Q_RENDER=""; Q_FREEZE=""
+Q_STREAM=""; Q_STREAM_DECODE=""
 RT_BIN=""; ORCH=""; BRIDGE=""; WSB=""; CASTER=""; FFMPEG=""
 resolve_bins() {
     Q_ANALYZER=$(resolve quanta-analyzer result-quanta || true)
     Q_RENDER=$(resolve   quanta-render   result-quanta || true)
     Q_FREEZE=$(resolve    quanta-freeze  result-quanta || true)
+    Q_STREAM=$(resolve        quanta-stream        result-quanta || true)
+    Q_STREAM_DECODE=$(resolve quanta-stream-decode result-quanta || true)
     RT_BIN=$(resolve demod-rt            result-rt      || true)
     ORCH=$(resolve   demod-orchestrator  result-orch    || true)
     BRIDGE=$(resolve demod-remote-bridge result-bridge  || true)
@@ -309,6 +316,22 @@ cmd_freeze() {
     "$Q_FREEZE" "$src" -o "$out" --verify
     echo "[freeze] $src → $out"
 }
+cmd_qss_encode() {
+    resolve_bins
+    local src="${1:?usage: qss-encode <in.wav> [out.qss]}"
+    mkdir -p "${OUT:-/out}" 2>/dev/null || true
+    local out_qss="${2:-${OUT:-/out}/out.qss}" bridge="${OUT:-/out}/bridge.qsc"
+    "$Q_STREAM" "$src" -o "$out_qss" --qsc "$bridge" --mode "${QSS_MODE:-near}" --rate "${QSS_RATE:-1200}"
+    echo "[qss-encode] $src → $out_qss (bridge: $bridge)"
+}
+cmd_qss_decode() {
+    resolve_bins
+    local src="${1:?usage: qss-decode <in.qss> [out.wav]}"
+    mkdir -p "${OUT:-/out}" 2>/dev/null || true
+    local out_wav="${2:-${OUT:-/out}/out.wav}"
+    "$Q_STREAM_DECODE" "$src" --wav "$out_wav"
+    echo "[qss-decode] $src → $out_wav"
+}
 
 cleanup() {
     local code=$?
@@ -368,13 +391,15 @@ main() {
         render|render_wav)   cmd_render "$@" ;;
         analyze)             cmd_analyze "$@" ;;
         freeze)              cmd_freeze "$@" ;;
+        qss-encode)          cmd_qss_encode "$@" ;;
+        qss-decode)          cmd_qss_decode "$@" ;;
         doctor)              doctor ;;
         test)                cd "$WORK" && exec nix develop -c make test ;;  # faust+numpy live in the dev shell
         shell)               cd "$WORK" && exec nix develop ;;
         -h|--help|help)
             sed -n '3,40p' "$0" | sed 's/^# \{0,1\}//' ;;
         *)
-            echo "[entrypoint] unknown command '$cmd' (try: serve stream quanta-only render analyze freeze doctor test shell)" >&2
+            echo "[entrypoint] unknown command '$cmd' (try: serve stream quanta-only render analyze freeze qss-encode qss-decode doctor test shell)" >&2
             exit 2 ;;
     esac
 }

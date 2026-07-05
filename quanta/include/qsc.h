@@ -1,6 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only
+/* SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
  * demod-quanta — QSC format + shared deterministic DSP core
- * Copyright (c) 2026 DeMoD LLC. See LICENSE and the repository-root LICENSING.md.
+ * Copyright (c) 2026 DeMoD LLC. See LICENSING.md.
  *
  * Single header shared by quanta-analyzer, quanta-render, quanta-freeze.
  * Everything here is part of the determinism contract (spec §12):
@@ -135,6 +135,26 @@ static inline double qsc_svf_bp(QscSvf *f, double x){
 /* band centers: 24 log-spaced 50 Hz .. 16 kHz */
 static inline double qsc_band_fc(int b){
     return QSC_BAND_LO * pow(QSC_BAND_HI / QSC_BAND_LO, (double)b / (QSC_BANDS - 1));
+}
+/* band-to-band coherence C[b][b'] = E[y_b * y_b'] for the shared calibration
+ * noise driving all 24 unity-peak bands. Signal-independent; used for the
+ * causal per-frame residual trim: E_synth(frame) ~= g^T C g, so
+ * trim = sqrt(E_res_frame / (g^T C g)). diag(C) == rho_b^2. */
+static inline void qsc_band_coherence(double C[QSC_BANDS][QSC_BANDS], double sr){
+    QscSvf f[QSC_BANDS];
+    for (int b = 0; b < QSC_BANDS; b++) qsc_svf_init(&f[b], qsc_band_fc(b), QSC_BAND_Q, sr);
+    for (int b = 0; b < QSC_BANDS; b++) for (int c = 0; c < QSC_BANDS; c++) C[b][c] = 0.0;
+    int32_t st = 0; double y[QSC_BANDS];
+    const int NCAL = 48000;
+    for (int i = 0; i < NCAL; i++){
+        st = qsc_lcg_step(st, (int32_t)0xC0FFEE);
+        double nz = qsc_lcg_out(st);
+        for (int b = 0; b < QSC_BANDS; b++) y[b] = qsc_svf_bp(&f[b], nz);
+        for (int b = 0; b < QSC_BANDS; b++)
+            for (int c = b; c < QSC_BANDS; c++) C[b][c] += y[b]*y[c];
+    }
+    for (int b = 0; b < QSC_BANDS; b++)
+        for (int c = b; c < QSC_BANDS; c++){ C[b][c] /= NCAL; C[c][b] = C[b][c]; }
 }
 /* residual gain quantization: g_dB = 0.25*q - 144 */
 static inline uint16_t qsc_gain_q(double lin){
