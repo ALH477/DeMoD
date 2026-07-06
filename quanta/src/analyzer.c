@@ -10,6 +10,28 @@
 
 /* ---------- iterative radix-2 complex FFT (double) ---------- */
 #include "../include/mp.h"
+/* shared normative render core (atoms-only reference for the coherent residual) */
+#include "../include/qrender.h"
+
+/* Coherent residual (Track B, bit-transparent tier): render the atoms-only reference
+   with the EXACT renderer arithmetic (FR=0 → no noise layer), take r = src − dcblock(atoms),
+   and quantize to `bits` (stored int16, scaled by the returned peak-scale). The decoder
+   adds cres*scale after its own dcblock, so decode nulls source to the quantizer floor
+   (~peak/2^bits). `at` must be the channel's written atom order (voice-grouped). */
+static double build_cres(const QscAtom *at, uint32_t nat, int P, uint32_t sr,
+                         uint64_t N, const double *src, int bits, int16_t *out){
+    double *y0 = malloc(N*sizeof(double)); double lg[3]={1.0,1.0,1.0};
+    render_channel(at, nat, P, 0xFFFFFFFF, NULL, 0 /*no noise*/, QSC_RES_HOP, 0,
+                   N, (double)sr, lg, g_wtab, g_stab, y0);
+    master_dcblock(y0, N, 1.0);
+    double peak=0; for (uint64_t t=0;t<N;t++){ double a=fabs(src[t]-y0[t]); if(a>peak)peak=a; }
+    int qmax=(1<<(bits-1))-1;
+    double scale = peak>0 ? peak/(double)qmax : 1.0;
+    scale = (double)(float)scale;                 /* stored as f32 → dequant with the same value */
+    for (uint64_t t=0;t<N;t++){ long qv=lround((src[t]-y0[t])/scale);
+        if(qv>qmax)qv=qmax; if(qv<-qmax-1)qv=-qmax-1; out[t]=(int16_t)qv; }
+    free(y0); return scale;
+}
 
 /* ---------- voice assignment: greedy interval coloring (§4.7) ---------- */
 static int cmp_voice_onset(const void *a, const void *b){
@@ -32,7 +54,7 @@ typedef struct {
    (mono) or twice (mid + side) for stereo. Caller owns/frees r, result.fa,
    result.gains. */
 static ChanResult analyze_channel(double *r, uint64_t N, uint32_t sr,
-                                  int Kmax, double snr_db, double floor_amp){
+                                  int Kmax, double snr_db, double floor_amp, int pmax){
     ChanResult R = {0};
     double e_src = 0.0; for (uint64_t i=0;i<N;i++) e_src += r[i]*r[i];
     double e_stop = e_src * pow(10.0, -snr_db/10.0);
@@ -134,7 +156,9 @@ static ChanResult analyze_channel(double *r, uint64_t N, uint32_t sr,
        waveforms returned to the residual so the noise layer absorbs them
        and total energy accounting stays closed. ---------------------------- */
     typedef struct { uint32_t s, e; } Iv;
-    Iv  *viv[QSC_PMAX]; int vn[QSC_PMAX] = {0}, vcap[QSC_PMAX] = {0};
+    if (pmax < 1) pmax = QSC_PMAX; if (pmax > 65535) pmax = 65535;
+    Iv **viv = calloc((size_t)pmax, sizeof *viv);
+    int *vn = calloc((size_t)pmax, sizeof(int)), *vcap = calloc((size_t)pmax, sizeof(int));
     int P = 0, dropped = 0, kept = 0;
     double e_drop = 0.0;
     for (int i = 0; i < K; i++){                 /* atoms[] is in rank order */
@@ -146,7 +170,7 @@ static ChanResult analyze_channel(double *r, uint64_t N, uint32_t sr,
                 if (s0 < viv[j][t].e && viv[j][t].s < e0){ clash = 1; break; }
             if (!clash) v = j;
         }
-        if (v < 0 && P < QSC_PMAX){
+        if (v < 0 && P < pmax){
             v = P; vcap[v] = 16; viv[v] = malloc(vcap[v]*sizeof(Iv)); P++;
         }
         if (v < 0){                              /* cull: return energy to r */
@@ -165,6 +189,7 @@ static ChanResult analyze_channel(double *r, uint64_t N, uint32_t sr,
         atoms[i].voice = (uint8_t)v; kept++;
     }
     for (int j = 0; j < P; j++) free(viv[j]);
+    free(viv); free(vn); free(vcap);
     (void)e_drop;
 
     /* ---------- residual model (§4.5): unity-peak band envelopes / rho_b, with a
@@ -232,20 +257,30 @@ static ChanResult analyze_channel(double *r, uint64_t N, uint32_t sr,
 int main(int argc, char **argv){
     const char *inpath = NULL, *outpath = "score.qsc";
     int Kmax = 2048; double snr_db = 35.0, floor_amp = 1e-4; uint32_t seed = 0xDEC0DE;
+    int pmax = QSC_PMAX;   /* voice cap; raise (e.g. 256) for a transparent/mastering render */
     double quality = -1.0; int stereo = 0;
+    int coherent = 0, cbits = 16;   /* --coherent [--cbits N]: bit-transparent residual tier */
     for (int i = 1; i < argc; i++){
         if (!strcmp(argv[i], "-o") && i+1<argc) outpath = argv[++i];
         else if (!strcmp(argv[i], "--k") && i+1<argc) Kmax = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--snr") && i+1<argc) snr_db = atof(argv[++i]);
         else if (!strcmp(argv[i], "--quality") && i+1<argc) quality = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--voices") && i+1<argc) pmax = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--stereo")) stereo = 1;
         else if (!strcmp(argv[i], "--seed") && i+1<argc) seed = (uint32_t)strtoul(argv[++i],0,0);
+        else if (!strcmp(argv[i], "--floor") && i+1<argc) floor_amp = atof(argv[++i]); /* MP salience floor (transparency lever) */
+        else if (!strcmp(argv[i], "--coherent")) coherent = 1;   /* store true residual → bit-transparent */
+        else if (!strcmp(argv[i], "--cbits") && i+1<argc){ cbits = atoi(argv[++i]); if(cbits<8)cbits=8; if(cbits>16)cbits=16; }
         else inpath = argv[i];
     }
     if (quality >= 0.0){
         if (quality > 10.0) quality = 10.0;
         snr_db = 30.0 + 3.0*quality; Kmax = 16384;
-        fprintf(stderr, "  --quality %.1f -> snr target %.0f dB, k<=%d\n", quality, snr_db, Kmax);
+        /* high quality also uncaps voices so coherent atoms aren't culled into the
+           noise residual (the transparency lever) — unless --voices was set explicitly */
+        if (pmax == QSC_PMAX) pmax = 64 + (int)(quality*20.0);
+        fprintf(stderr, "  --quality %.1f -> snr target %.0f dB, k<=%d, voices<=%d\n",
+                quality, snr_db, Kmax, pmax);
     }
     if (!inpath){ fprintf(stderr,
         "usage: quanta-analyzer in.wav [-o out.qsc] [--k N] [--snr dB] [--quality 0..10] [--stereo]\n");
@@ -260,7 +295,13 @@ int main(int argc, char **argv){
     double es = 0.0; for (uint64_t i=0;i<N;i++) es += Sd[i]*Sd[i];
     int do_stereo = stereo && es > 1e-9;                  /* opt-in + non-trivial side */
 
-    ChanResult cm = analyze_channel(M, N, sr, Kmax, snr_db, floor_amp);
+    /* analyze_channel subtracts atoms from its input in place → snapshot the true source
+       first, so the coherent residual is measured against the ORIGINAL, not the leftover. */
+    double *M0=NULL, *S0=NULL;
+    if (coherent){ M0=malloc(N*sizeof(double)); memcpy(M0,M,N*sizeof(double));
+                   S0=malloc(N*sizeof(double)); memcpy(S0,Sd,N*sizeof(double)); }
+
+    ChanResult cm = analyze_channel(M, N, sr, Kmax, snr_db, floor_amp, pmax);
     Qsc q = {0};
     q.h.sample_rate=sr; q.h.source_len=N; q.h.scale_count=QSC_SCALES;
     q.h.band_count=QSC_BANDS; q.h.residual_hop=QSC_RES_HOP;
@@ -269,7 +310,15 @@ int main(int argc, char **argv){
     if (!do_stereo){
         q.h.channel_count=1; q.h.atom_count=(uint32_t)cm.m; q.h.voice_count=(uint16_t)cm.P;
         q.atoms=cm.fa; q.res_gains=cm.gains;
+        if (coherent){
+            q.h.flags |= QSC_FLAG_CRES; q.cres_bits=(uint8_t)cbits;
+            q.cres = malloc(N*sizeof(int16_t));
+            q.cres_scale[0] = build_cres(cm.fa, (uint32_t)cm.m, cm.P, sr, N, M0, cbits, q.cres);
+            fprintf(stderr,"  --coherent %d-bit: residual scale %.3e (~%.1f dBFS quant floor)\n",
+                    cbits, q.cres_scale[0], 20.0*log10(q.cres_scale[0]/3.464+1e-300));
+        }
         if (qsc_write(outpath,&q)){ fprintf(stderr,"analyzer: write failed\n"); return 1; }
+        free(q.cres); q.cres=NULL;
         fprintf(stderr,
             "analyzer: %s (mono)\n  %llu samples @ %u Hz | atoms %d (dropped %d) | voices %d\n"
             "  onsets %d | residual %+.2f dB re source | seed 0x%08X -> %s\n",
@@ -277,7 +326,7 @@ int main(int argc, char **argv){
             10.0*log10(cm.e_res/cm.e_src + 1e-30), seed, outpath);
         free(cm.fa); free(cm.gains);
     } else {
-        ChanResult cs = analyze_channel(Sd, N, sr, Kmax, snr_db, floor_amp);
+        ChanResult cs = analyze_channel(Sd, N, sr, Kmax, snr_db, floor_amp, pmax);
         int tot = cm.m + cs.m;
         QscAtom *all = malloc(sizeof(QscAtom)*(tot?tot:1));
         for (int i=0;i<cm.m;i++){ all[i]        = cm.fa[i]; all[i].flags        &= (uint8_t)~1; }   /* mid  = flag bit0 = 0 */
@@ -289,7 +338,17 @@ int main(int argc, char **argv){
         q.h.channel_count=2; q.h.atom_count=(uint32_t)tot;
         q.h.voice_count=(uint16_t)(cm.P>cs.P?cm.P:cs.P);
         q.h.residual_frames=fr; q.atoms=all; q.res_gains=ag;
+        if (coherent){
+            int vc = q.h.voice_count;
+            q.h.flags |= QSC_FLAG_CRES; q.cres_bits=(uint8_t)cbits;
+            q.cres = malloc((size_t)2*N*sizeof(int16_t));
+            q.cres_scale[0] = build_cres(cm.fa, (uint32_t)cm.m, vc, sr, N, M0, cbits, q.cres);
+            q.cres_scale[1] = build_cres(cs.fa, (uint32_t)cs.m, vc, sr, N, S0, cbits, q.cres+N);
+            fprintf(stderr,"  --coherent %d-bit: residual scale M %.3e / S %.3e\n",
+                    cbits, q.cres_scale[0], q.cres_scale[1]);
+        }
         if (qsc_write(outpath,&q)){ fprintf(stderr,"analyzer: write failed\n"); return 1; }
+        free(q.cres); q.cres=NULL;
         fprintf(stderr,
             "analyzer: %s (mid/side stereo)\n"
             "  %llu samples @ %u Hz | atoms M=%d S=%d (dropped M=%d S=%d) | voices M=%d S=%d\n"
@@ -299,6 +358,6 @@ int main(int argc, char **argv){
             10.0*log10(cs.e_res/(cs.e_src + 1e-30) + 1e-30), seed, outpath);
         free(cm.fa); free(cm.gains); free(cs.fa); free(cs.gains); free(all); free(ag);
     }
-    free(M); free(Sd);
+    free(M); free(Sd); free(M0); free(S0);
     return 0;
 }

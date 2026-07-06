@@ -18,7 +18,20 @@ static void emit_table(FILE *o, const char *name, const double *v, uint32_t n){
     fprintf(o, "%s = waveform{", name);
     for (uint32_t i = 0; i < n; i++)
         fprintf(o, "%s%.17g", i ? "," : "", v[i]);
+    if (n == 0) fprintf(o, "0.0");     /* Faust rejects waveform{}; an empty voice reads
+                                          this dummy but its act-gate is always false → silence */
     fprintf(o, "};\n");
+}
+
+/* Coherent residual (§B): the true post-atom residual as an int16 waveform table read
+   by the sample counter, scaled back to linear. Nulls source at the quantizer floor.
+   Emitted as integer literals (compact) + a single scale multiply. */
+static void emit_cres(FILE *o, const char *name, const int16_t *v, uint64_t n, double scale){
+    fprintf(o, "%sT = waveform{", name);
+    for (uint64_t i = 0; i < n; i++) fprintf(o, "%s%d", i ? "," : "", (int)v[i]);
+    if (n == 0) fprintf(o, "0");
+    fprintf(o, "};\n%s = (%sT, int(min(tim,%llu)) : rdtable) * %.17g;\n",
+            name, name, (unsigned long long)(n ? n-1 : 0), scale);
 }
 
 /* Emit one channel's voice banks + residual, names prefixed by `px` and its own
@@ -130,6 +143,8 @@ int main(int argc, char **argv){
     Qsc q;
     if (qsc_read(inpath, &q)){ fprintf(stderr, "freeze: qsc_read failed\n"); return 1; }
     int cc = q.h.channel_count ? q.h.channel_count : 1;
+    int cres_on = (q.h.flags & QSC_FLAG_CRES) && q.cres;   /* bit-transparent tier */
+    uint64_t N = q.h.source_len;
 
     /* K-prune (frozen artifact has no runtime K gate, §7) — per-atom, keeps the
        [mid][side] block order and each atom's channel flag. */
@@ -226,8 +241,12 @@ int main(int argc, char **argv){
         for (uint32_t i = 0; i < m; i++) voff[q.atoms[i].voice + 1]++;
         for (int v = 0; v < P; v++) voff[v+1] += voff[v];
         emit_channel(o, "", q.atoms, voff, P, q.res_gains, FR, q.h.sample_rate, q.h.noise_seed, verify);
-        fprintf(o, "process = (vsum + res%s)%s : dcb;\n",
-                verify ? "" : "*g2", verify ? "" : " * gm");
+        if (cres_on){                                    /* atoms-only + stored true residual */
+            emit_cres(o, "cres", q.cres, N, q.cres_scale[0]);
+            fprintf(o, "process = (vsum%s : dcb) + cres;\n", verify ? "" : " * gm");
+        } else
+            fprintf(o, "process = (vsum + res%s)%s : dcb;\n",
+                    verify ? "" : "*g2", verify ? "" : " * gm");
         free(voff);
     } else {
         uint32_t split = 0; while (split < m && !(q.atoms[split].flags & 1)) split++;
@@ -242,12 +261,21 @@ int main(int argc, char **argv){
         emit_channel(o, "M", Ma, voffM, P, q.res_gains,        FR, q.h.sample_rate, q.h.noise_seed, verify);
         emit_channel(o, "S", Sa, voffS, P, q.res_gains + gblk, FR, q.h.sample_rate,
                      q.h.noise_seed ^ QSC_SIDE_SEED_XOR, verify);
-        fprintf(o,
-            "Mout = (Mvsum + Mres%s)%s : dcb;\n"
-            "Sout = (Svsum + Sres%s)%s : dcb;\n"
-            "process = (Mout + Sout, Mout - Sout);\n",
-            verify ? "" : "*g2", verify ? "" : " * gm",
-            verify ? "" : "*g2", verify ? "" : " * gm");
+        if (cres_on){
+            emit_cres(o, "Mcres", q.cres,   N, q.cres_scale[0]);
+            emit_cres(o, "Scres", q.cres+N, N, q.cres_scale[1]);
+            fprintf(o,
+                "Mout = (Mvsum%s : dcb) + Mcres;\n"
+                "Sout = (Svsum%s : dcb) + Scres;\n"
+                "process = (Mout + Sout, Mout - Sout);\n",
+                verify ? "" : " * gm", verify ? "" : " * gm");
+        } else
+            fprintf(o,
+                "Mout = (Mvsum + Mres%s)%s : dcb;\n"
+                "Sout = (Svsum + Sres%s)%s : dcb;\n"
+                "process = (Mout + Sout, Mout - Sout);\n",
+                verify ? "" : "*g2", verify ? "" : " * gm",
+                verify ? "" : "*g2", verify ? "" : " * gm");
         free(voffM); free(voffS);
         (void)nS;
     }

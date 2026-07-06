@@ -1,0 +1,120 @@
+/* SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
+ * quanta-unit-freeze — bake a decoded utterance into a static Faust .dsp. The unit stream +
+ * inventory are decoded offline (C) to per-frame parameters, the deterministic synth
+ * (qva_synth_det) captures the exact baked tables (fundamental, harmonic amp/phase, noise
+ * amplitude, all-pole coeffs, per-frame gain), and this emits Faust that reproduces it
+ * sample-for-sample — a self-contained decoder whose only artifact is a .dsp. Nulls against
+ * `quanta-unit-render --det` (cf. src/freeze.c nulling render.c).  Copyright (c) 2026 DeMoD LLC.
+ */
+#include "../include/qunit.h"
+#include "../include/qspu.h"
+
+static double g_wtab[QSC_TAB], g_stab[QSC_TAB];   /* mp.h fft globals */
+
+static double dq(int i,double lo,double hi,int bits){ int n=(1<<bits)-1; return lo+(double)i/n*(hi-lo); }
+static void emit_table(FILE *o,const char *name,const double *v,size_t n){
+    fprintf(o,"%s = waveform{",name);
+    for (size_t i=0;i<n;i++) fprintf(o,"%s%.17g", i?",":"", v[i]);
+    if (n==0) fprintf(o,"0.0");
+    fprintf(o,"};\n");
+}
+
+int main(int argc, char **argv){
+    const char *inv_p=NULL,*str_p=NULL,*outdsp="out.dsp",*golden=NULL;
+    for (int i=1;i<argc;i++){
+        if (!strcmp(argv[i],"-o")&&i+1<argc) outdsp=argv[++i];
+        else if (!strcmp(argv[i],"--golden")&&i+1<argc) golden=argv[++i];
+        else if (!inv_p) inv_p=argv[i]; else str_p=argv[i];
+    }
+    if (!inv_p||!str_p){ fprintf(stderr,"usage: quanta-unit-freeze inv.qinv stream.qspu -o out.dsp [--golden ref.f64]\n"); return 2; }
+    QInv inv; if (qinv_read(inv_p,&inv)){ fprintf(stderr,"qinv read failed\n"); return 1; }
+    QStr st; int idb; if (qspu_read(str_p,&st,&idb)){ fprintf(stderr,"qspu read failed\n"); return 1; }
+    uint32_t sr=st.sr; int H,NF; qva_params(sr,&H,&NF); int half=NF/2, order=inv.order, ns=inv.nsub;
+    double L70=log2(70.0), L400=log2(400.0);
+
+    /* ---- reconstruct per-frame trajectories (mirrors quanta-unit-render) ---- */
+    int nf=0;
+    for (uint32_t u=0;u<st.nu;u++){ int fr=(int)lround(dq(st.u[u].dur,20,160,QSPU_DURB)/1000.0*sr/H); if(fr<1)fr=1; nf+=fr; }
+    double *lsff=malloc((size_t)nf*order*sizeof(double)), *f0=malloc(nf*sizeof(double));
+    double *gain=malloc(nf*sizeof(double)), *bvoi=malloc((size_t)nf*QVA_NB*sizeof(double));
+    uint8_t *voiced=malloc(nf);
+    double bvdef[QVA_NB]; for(int b=0;b<QVA_NB;b++) bvdef[b]=0.75+(0.2-0.75)*b/(double)(QVA_NB-1);
+    int fi=0;
+    for (uint32_t u=0;u<st.nu;u++){ QUnit *un=&st.u[u];
+        int fr=(int)lround(dq(un->dur,20,160,QSPU_DURB)/1000.0*sr/H); if(fr<1)fr=1;
+        double p0=pow(2.0,dq(un->p0,L70,L400,QSPU_PITB)), p1=pow(2.0,dq(un->p1,L70,L400,QSPU_PITB));
+        const float *cw=inv.cb+(size_t)un->id*ns*order;
+        double econ[64]; for (int j=0;j<ns;j++) econ[j]=pow(10.0,dq(un->econ[j],-4,0,QSPU_ENGB));
+        for (int j=0;j<fr;j++,fi++){
+            double t=(fr>1)?(double)j/(fr-1):0.0, si=t*(ns-1); int s0=(int)si; double f=si-s0; int s1=(s0+1<ns)?s0+1:s0;
+            for (int c=0;c<order;c++) lsff[(size_t)fi*order+c]=cw[s0*order+c]*(1-f)+cw[s1*order+c]*f;
+            int sc=(int)lround(t*(ns-1)); int uv=un->vcon[sc];
+            f0[fi]=uv?(p0*(1-t)+p1*t):0.0; voiced[fi]=(uint8_t)uv;
+            gain[fi]=econ[s0]*(1-f)+econ[s1]*f;
+            for (int b=0;b<QVA_NB;b++) bvoi[(size_t)fi*QVA_NB+b]=uv?bvdef[b]:0.0;
+        }
+    }
+    int sm=3; if (sm>1 && nf>sm){
+        double *tmp=malloc((size_t)nf*order*sizeof(double)); int hw=sm/2;
+        for (int c=0;c<order;c++) for (int i=0;i<nf;i++){ double s=0; int n=0;
+            for (int t=-hw;t<=hw;t++){ int ii=i+t; if(ii>=0&&ii<nf){ s+=lsff[(size_t)ii*order+c]; n++; } }
+            tmp[(size_t)i*order+c]=s/n; }
+        memcpy(lsff,tmp,(size_t)nf*order*sizeof(double)); free(tmp);
+        for (int i=0;i<nf;i++){ double *L=lsff+(size_t)i*order;
+            for (int x=1;x<order;x++){ double v=L[x]; int y=x-1; while(y>=0&&L[y]>v){L[y+1]=L[y];y--;} L[y+1]=v; } }
+    }
+    double *env=malloc((size_t)nf*(half+1)*sizeof(double)), *lpc=malloc((size_t)nf*(order+1)*sizeof(double));
+    for (int i=0;i<nf;i++){ double *a=lpc+(size_t)i*(order+1);
+        qlsf_lsf_to_lpc(lsff+(size_t)i*order,order,a); qlsf_lpc_to_env(a,order,1.0,NF,env+(size_t)i*(half+1)); }
+
+    /* ---- deterministic synth: capture baked freeze params + golden reference ---- */
+    uint32_t seed=12345;
+    double *out=malloc((size_t)nf*H*sizeof(double)); QvaFreeze fz;
+    qva_synth_det(env,f0,voiced,bvoi,gain,lpc,order,nf,sr,H,NF,qva_defaults(),seed,out,&fz);
+    uint64_t N=(uint64_t)nf*H;
+    if (golden){ raw_write_f64(golden,out,N); fprintf(stderr,"golden reference -> %s\n",golden); }
+
+    /* ---- emit Faust ---- */
+    int Kmax=fz.Kmax;
+    FILE *o=fopen(outdsp,"w"); if(!o){ fprintf(stderr,"cannot open %s\n",outdsp); return 1; }
+    fprintf(o,
+        "// demod-quanta unit-vocoder frozen artifact — generated by quanta-unit-freeze\n"
+        "// units=%u frames=%d samples=%llu sr=%u Kmax=%d order=%d seed=0x%X\n"
+        "// Deterministic static resynthesis; nulls vs `quanta-unit-render --det`. Compile: faust -double.\n"
+        "declare name \"quanta\";\n"
+        "declare license \"Generated output — property of the score owner\";\n"
+        "import(\"stdfaust.lib\");\n"
+        "SR = %.17g; H = %d; NFR = %d; KMAX = %d; ORDER = %d; SEED = %u;\n\n",
+        st.nu,nf,(unsigned long long)N,sr,Kmax,order,seed,(double)sr,H,nf,Kmax,order,seed);
+
+    emit_table(o,"f0cT",fz.f0c,(size_t)nf);
+    emit_table(o,"naT",fz.na,(size_t)nf);
+    emit_table(o,"gT",fz.g,(size_t)nf);
+    emit_table(o,"ampT",fz.amp,(size_t)nf*Kmax);
+    emit_table(o,"thT",fz.th,(size_t)nf*Kmax);
+    emit_table(o,"lpcT",fz.lpc,(size_t)nf*(order+1));
+
+    fprintf(o,
+        "\ntim = (+(1) ~ _) - 1;\n"
+        "frame = min(int(tim/H), NFR-1);\n"
+        "f0cv = f0cT, frame : rdtable;\n"
+        "nav  = naT, frame : rdtable;\n"
+        "gv   = gT, frame : rdtable;\n"
+        "ampv(k) = ampT, (frame*KMAX + k) : rdtable;\n"
+        "thv(k)  = thT, (frame*KMAX + k) : rdtable;\n"
+        "lpcv(q) = lpcT, (frame*(ORDER+1) + q) : rdtable;\n\n"
+        "phi = (2.0*ma.PI*f0cv/SR) : (+ ~ _);\n"
+        "harm = sum(k, KMAX, ampv(k) * sin(float(k+1)*phi + thv(k)));\n\n"
+        "lcgs = (step ~ _) with { step(s) = (s*%d + %d + SEED) & %d; };\n"
+        "nz = float(lcgs)/1073741824.0 - 1.0;\n"
+        "exc = nz * nav;\n"
+        "apole = exc : (+ ~ fb) with { fb(z) = 0.0 - sum(q, ORDER, lpcv(q+1) * (z@q)); };\n\n"
+        "process = (harm + apole) * gv;\n",
+        QSC_LCG_A, QSC_LCG_C, QSC_LCG_M);
+    fclose(o);
+    fprintf(stderr,"unit-freeze: %s  (%d frames, Kmax=%d, %llu samples)\n",outdsp,nf,Kmax,(unsigned long long)N);
+
+    qvafreeze_free(&fz); qinv_free(&inv); qspu_free(&st);
+    free(lsff);free(f0);free(gain);free(bvoi);free(voiced);free(env);free(lpc);free(out);
+    return 0;
+}

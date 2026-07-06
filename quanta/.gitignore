@@ -16,3 +16,6 @@ test/codec_selftest
 test/canon*
 test/music/
 test/speech/
+test/harness
+test/*_h
+test/*.log

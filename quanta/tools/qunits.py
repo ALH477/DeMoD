@@ -125,6 +125,39 @@ def decode(stream, inv, sr, smooth=3):
     a=dict(sr=sr,H=H,NF=NF,env=env,f0=np.array(f0),voiced=np.array(vo),bvoi=np.array(bv),N=N)
     return qvoc.apply_gain(qvoc.synth(a), np.array(gain), H)
 
+# ---------- .qinv / .qspu writers (byte-match include/qspu.h) ----------
+import struct, zlib
+class _BW:
+    def __init__(s): s.b=bytearray([0]); s.byte=0; s.bit=0
+    def put1(s,v):
+        if v: s.b[s.byte]|=(0x80>>s.bit)
+        s.bit+=1
+        if s.bit==8: s.bit=0; s.byte+=1; s.b.append(0)
+    def putn(s,v,n):
+        for i in range(n-1,-1,-1): s.put1((v>>i)&1)
+    def bytes(s): return bytes(s.b[:s.byte+(1 if s.bit else 0)])
+def _be(v,n): return v.to_bytes(n,'big')
+
+def write_qinv(path, inv, sr):
+    K,order,nsub=inv['K'],inv['order'],inv['nsub']
+    h=b'QINV'+_be(sr,4)+_be(K,4)+_be(order,4)+_be(nsub,4)
+    h+=_be(zlib.crc32(h)&0xffffffff,4)
+    cb=np.asarray(inv['cb'],dtype='<f4').tobytes()
+    vp=np.asarray(inv['vpat'],dtype=np.uint8).tobytes()
+    open(path,'wb').write(h+cb+vp)
+
+def write_qspu(path, stream, inv, sr, source_len):
+    idb=IDBITS(inv['K']); nsub=inv['nsub']
+    w=_BW()
+    for (uid,di,pi0,pi1,ei,vcon) in stream:
+        w.putn(uid,idb); w.putn(di,DURB); w.putn(pi0,PITB); w.putn(pi1,PITB)
+        for e in ei: w.putn(int(e),3)
+        for v in vcon: w.put1(int(v)&1)
+    body=w.bytes()
+    h=b'QSPU'+_be(sr,4)+_be(source_len,8)+_be(len(stream),4)+_be(nsub,4)+_be(idb,4)
+    h+=_be(zlib.crc32(h)&0xffffffff,4)
+    open(path,'wb').write(h+body+_be(zlib.crc32(body)&0xffffffff,4))
+
 if __name__=='__main__':
     import glob
     clips=sorted(glob.glob(sys.argv[1])) if len(sys.argv)>1 else sorted(glob.glob('test/speech/bench/*_8k.wav'))

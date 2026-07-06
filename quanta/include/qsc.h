@@ -57,10 +57,21 @@ typedef struct {
     uint8_t  layer, voice, scale_idx, flags;
 } QscAtom;
 
+/* ---- header flags (h.flags) ---- */
+#define QSC_FLAG_CRES  0x0001   /* a coherent residual layer follows the noise gains
+                                   (Track B: bit-transparent tier). See qsc_write/qsc_read. */
+
 typedef struct {
     QscHeader h;
     QscAtom  *atoms;            /* grouped by voice, onset-sorted     */
     uint16_t *res_gains;        /* residual_frames * band_count, u16  */
+    /* Coherent residual (present iff h.flags & QSC_FLAG_CRES). The true post-atom
+       residual r = source - dcblock(atoms), quantized per channel to `cres_bits` and
+       scaled by `cres_scale[c]` (stored f32 so encode/decode dequantize identically).
+       Layout: channel-major, cres[c*source_len + t]. Decode: out += cres[t]*scale. */
+    uint8_t   cres_bits;        /* quantizer precision, e.g. 16                        */
+    double    cres_scale[2];    /* per-channel dequant scale (mid, side / or mono)     */
+    int16_t  *cres;             /* cc * source_len int16 samples, or NULL              */
 } Qsc;
 
 /* ---------------- big-endian primitives (DCF convention) ------ */
@@ -178,7 +189,9 @@ static inline int qsc_write(const char *path, const Qsc *q){
     int    cc  = q->h.channel_count ? q->h.channel_count : 1;
     size_t asz = (size_t)q->h.atom_count * QSC_ATOM_SIZE;
     size_t gsz = (size_t)q->h.residual_frames * q->h.band_count * cc * 2;
-    size_t tot = QSC_HEADER_SIZE + asz + gsz + 4;
+    int    hasc = (q->h.flags & QSC_FLAG_CRES) && q->cres;
+    size_t csz = hasc ? (1 + (size_t)cc*4 + (size_t)cc*q->h.source_len*2) : 0;
+    size_t tot = QSC_HEADER_SIZE + asz + gsz + csz + 4;
     uint8_t *buf = calloc(1, tot); if (!buf) return -1;
     uint8_t *p = buf;
     memcpy(p, QSC_MAGIC, 4);
@@ -199,7 +212,13 @@ static inline int qsc_write(const char *path, const Qsc *q){
     }
     for (size_t i = 0; i < (size_t)q->h.residual_frames * q->h.band_count * cc; i++, p += 2)
         be16w(p, q->res_gains[i]);
-    uint32_t crc = qsc_crc32(buf + QSC_HEADER_SIZE, asz + gsz);
+    if (hasc){                                  /* coherent residual layer (QSC_FLAG_CRES) */
+        *p++ = q->cres_bits;
+        for (int c=0;c<cc;c++){ bef32w(p, (float)q->cres_scale[c]); p += 4; }
+        for (size_t i = 0; i < (size_t)cc*q->h.source_len; i++, p += 2)
+            be16w(p, (uint16_t)q->cres[i]);
+    }
+    uint32_t crc = qsc_crc32(buf + QSC_HEADER_SIZE, asz + gsz + csz);
     be32w(buf + 44, crc);                       /* header crc field */
     be32w(p, crc);                              /* trailer copy     */
     FILE *fp = fopen(path, "wb"); if (!fp){ free(buf); return -1; }
@@ -226,10 +245,13 @@ static inline int qsc_read(const char *path, Qsc *q){
     q->h.residual_frames = be32r(buf+30);
     q->h.noise_seed      = be32r(buf+34);
     q->h.channel_count   = buf[38] ? buf[38] : 1;      /* legacy 0 ⇒ mono */
+    int cc = q->h.channel_count;
     size_t asz = (size_t)q->h.atom_count * QSC_ATOM_SIZE;
-    size_t gsz = (size_t)q->h.residual_frames * q->h.band_count * q->h.channel_count * 2;
-    if ((size_t)sz < QSC_HEADER_SIZE + asz + gsz + 4){ free(buf); return -2; }
-    if (qsc_crc32(buf + QSC_HEADER_SIZE, asz + gsz) != be32r(buf + 44)){ free(buf); return -3; }
+    size_t gsz = (size_t)q->h.residual_frames * q->h.band_count * cc * 2;
+    int    hasc = (q->h.flags & QSC_FLAG_CRES) != 0;
+    size_t csz = hasc ? (1 + (size_t)cc*4 + (size_t)cc*q->h.source_len*2) : 0;
+    if ((size_t)sz < QSC_HEADER_SIZE + asz + gsz + csz + 4){ free(buf); return -2; }
+    if (qsc_crc32(buf + QSC_HEADER_SIZE, asz + gsz + csz) != be32r(buf + 44)){ free(buf); return -3; }
     q->atoms = malloc(sizeof(QscAtom) * (q->h.atom_count ? q->h.atom_count : 1));
     const uint8_t *p = buf + QSC_HEADER_SIZE;
     for (uint32_t i = 0; i < q->h.atom_count; i++, p += QSC_ATOM_SIZE){
@@ -240,12 +262,19 @@ static inline int qsc_read(const char *path, Qsc *q){
         a->layer = p[28]; a->voice = p[29]; a->scale_idx = p[30]; a->flags = p[31];
     }
     q->res_gains = malloc(gsz ? gsz : 2);
-    for (size_t i = 0; i < (size_t)q->h.residual_frames * q->h.band_count * q->h.channel_count; i++, p += 2)
+    for (size_t i = 0; i < (size_t)q->h.residual_frames * q->h.band_count * cc; i++, p += 2)
         q->res_gains[i] = be16r(p);
+    if (hasc){
+        q->cres_bits = *p++;
+        for (int c=0;c<cc;c++){ q->cres_scale[c] = (double)bef32r(p); p += 4; }
+        size_t ns = (size_t)cc*q->h.source_len;
+        q->cres = malloc((ns?ns:1)*sizeof(int16_t));
+        for (size_t i=0;i<ns;i++, p+=2) q->cres[i] = (int16_t)be16r(p);
+    }
     free(buf);
     return 0;
 }
-static inline void qsc_free(Qsc *q){ free(q->atoms); free(q->res_gains); }
+static inline void qsc_free(Qsc *q){ free(q->atoms); free(q->res_gains); free(q->cres); }
 
 /* ---------------- minimal WAV I/O ----------------------------- */
 static inline double *wav_read_mono(const char *path, uint32_t *sr, uint64_t *n){
@@ -256,11 +285,12 @@ static inline double *wav_read_mono(const char *path, uint32_t *sr, uint64_t *n)
         uint8_t ck[8]; if (fread(ck,1,8,f)!=8) break;
         uint32_t len = ck[4]|ck[5]<<8|ck[6]<<16|(uint32_t)ck[7]<<24;
         if (!memcmp(ck,"fmt ",4)){
-            uint8_t b[16]; if (fread(b,1,16,f)!=16) break;
+            uint8_t b[40]={0}; uint32_t rd=len<40?len:40; if (fread(b,1,rd,f)!=rd) break;
             fmt = b[0]|b[1]<<8; ch = b[2]|b[3]<<8;
             rate = b[4]|b[5]<<8|b[6]<<16|(uint32_t)b[7]<<24;
             bits = b[14]|b[15]<<8;
-            if (len > 16) fseek(f, len-16, SEEK_CUR);
+            if (fmt==0xFFFE && rd>=26) fmt = b[24]|b[25]<<8;  /* EXTENSIBLE: real code in SubFormat GUID */
+            if (len > rd) fseek(f, len-rd, SEEK_CUR);
         } else if (!memcmp(ck,"data",4)){
             uint32_t bytes = (bits/8)*ch; if (!bytes) break;
             ns = len / bytes; out = malloc(sizeof(double)*ns);
@@ -270,7 +300,9 @@ static inline double *wav_read_mono(const char *path, uint32_t *sr, uint64_t *n)
                 for (int c=0;c<ch;c++){ const uint8_t *s = raw + i*bytes + c*(bits/8); double v=0;
                     if (fmt==1 && bits==16){ int16_t x=(int16_t)(s[0]|s[1]<<8); v=x/32768.0; }
                     else if (fmt==1 && bits==24){ int32_t x=(s[0]|s[1]<<8|s[2]<<16); if (x&0x800000) x|=~0xFFFFFF; v=x/8388608.0; }
+                    else if (fmt==1 && bits==32){ int32_t x=(int32_t)(s[0]|s[1]<<8|s[2]<<16|(uint32_t)s[3]<<24); v=x/2147483648.0; }
                     else if (fmt==3 && bits==32){ float fx; memcpy(&fx,s,4); v=fx; }
+                    else if (fmt==3 && bits==64){ double dx; memcpy(&dx,s,8); v=dx; }
                     acc += v;
                 }
                 out[i]=acc/ch;
@@ -297,6 +329,30 @@ static inline int wav_write16(const char *path, const double *x, uint64_t n, uin
         int16_t s=(int16_t)lrint(v*32767.0); uint8_t b[2]={(uint8_t)s,(uint8_t)(s>>8)}; fwrite(b,1,2,f); }
     fclose(f); return 0;
 }
+/* Hi-res mono writers (mastering/audiophile path). 24-bit PCM (fmt 1) and 32-bit
+   float (fmt 3, exact f64→f32, no quantization). Header mirrors wav_write16;
+   bytes-per-sample `bps` and format code parameterised. Any sample rate. */
+static inline int wav_write_hres(const char *path, const double *x, uint64_t n,
+                                 uint32_t sr, int bps, int is_float){
+    FILE *f=fopen(path,"wb"); if(!f) return -1;
+    uint32_t dlen=(uint32_t)(n*bps), rlen=36+dlen, br=sr*(uint32_t)bps;
+    uint8_t h[44]={0}; memcpy(h,"RIFF",4);
+    h[4]=rlen;h[5]=rlen>>8;h[6]=rlen>>16;h[7]=rlen>>24; memcpy(h+8,"WAVEfmt ",8);
+    h[16]=16; h[20]=(uint8_t)(is_float?3:1); h[22]=1;
+    h[24]=sr;h[25]=sr>>8;h[26]=sr>>16;h[27]=sr>>24;
+    h[28]=br;h[29]=br>>8;h[30]=br>>16;h[31]=br>>24;
+    h[32]=(uint8_t)bps; h[34]=(uint8_t)(bps*8); memcpy(h+36,"data",4);
+    h[40]=dlen;h[41]=dlen>>8;h[42]=dlen>>16;h[43]=dlen>>24;
+    fwrite(h,1,44,f);
+    for (uint64_t i=0;i<n;i++){ double v=x[i];
+        if (is_float){ float fv=(float)v; fwrite(&fv,4,1,f); }
+        else { if(v>1)v=1; if(v<-1)v=-1; int32_t s=(int32_t)lrint(v*8388607.0);
+               uint8_t b[3]={(uint8_t)s,(uint8_t)(s>>8),(uint8_t)(s>>16)}; fwrite(b,1,3,f); } }
+    fclose(f); return 0;
+}
+static inline int wav_write24 (const char *p,const double *x,uint64_t n,uint32_t sr){ return wav_write_hres(p,x,n,sr,3,0); }
+static inline int wav_write_f32(const char *p,const double *x,uint64_t n,uint32_t sr){ return wav_write_hres(p,x,n,sr,4,1); }
+
 static inline int raw_write_f64(const char *path, const double *x, uint64_t n){
     FILE *f=fopen(path,"wb"); if(!f) return -1;
     size_t w=fwrite(x,8,n,f); fclose(f); return w==n?0:-1;
@@ -311,9 +367,10 @@ static inline uint64_t wav_read_ms(const char *path, uint32_t *sr, double **mid,
     for (;;){
         uint8_t ck[8]; if (fread(ck,1,8,f)!=8) break;
         uint32_t len = ck[4]|ck[5]<<8|ck[6]<<16|(uint32_t)ck[7]<<24;
-        if (!memcmp(ck,"fmt ",4)){ uint8_t b[16]; if (fread(b,1,16,f)!=16) break;
+        if (!memcmp(ck,"fmt ",4)){ uint8_t b[40]={0}; uint32_t rd=len<40?len:40; if (fread(b,1,rd,f)!=rd) break;
             fmt=b[0]|b[1]<<8; ch=b[2]|b[3]<<8; rate=b[4]|b[5]<<8|b[6]<<16|(uint32_t)b[7]<<24; bits=b[14]|b[15]<<8;
-            if (len>16) fseek(f,len-16,SEEK_CUR);
+            if (fmt==0xFFFE && rd>=26) fmt = b[24]|b[25]<<8;  /* EXTENSIBLE: real code in SubFormat GUID */
+            if (len>rd) fseek(f,len-rd,SEEK_CUR);
         } else if (!memcmp(ck,"data",4)){
             uint32_t bpf=(bits/8)*ch; if(!bpf) break; ns=len/bpf;
             M=malloc(sizeof(double)*ns); S=malloc(sizeof(double)*ns);
@@ -322,7 +379,9 @@ static inline uint64_t wav_read_ms(const char *path, uint32_t *sr, double **mid,
                 for (int c=0;c<ch;c++){ const uint8_t *s=raw+i*bpf+c*(bits/8); double x=0;
                     if (fmt==1&&bits==16){ int16_t t=(int16_t)(s[0]|s[1]<<8); x=t/32768.0; }
                     else if (fmt==1&&bits==24){ int32_t t=(s[0]|s[1]<<8|s[2]<<16); if(t&0x800000)t|=~0xFFFFFF; x=t/8388608.0; }
+                    else if (fmt==1&&bits==32){ int32_t t=(int32_t)(s[0]|s[1]<<8|s[2]<<16|(uint32_t)s[3]<<24); x=t/2147483648.0; }
                     else if (fmt==3&&bits==32){ float fx; memcpy(&fx,s,4); x=fx; }
+                    else if (fmt==3&&bits==64){ double dx; memcpy(&dx,s,8); x=dx; }
                     if (c<2) v[c]=x; }
                 double L=v[0], R=(ch>=2)?v[1]:v[0];
                 M[i]=0.5*(L+R); S[i]=0.5*(L-R);
@@ -334,6 +393,29 @@ static inline uint64_t wav_read_ms(const char *path, uint32_t *sr, double **mid,
     if (M){ *sr=rate; *mid=M; *side=S; return ns; }
     free(M); free(S); return 0;
 }
+/* Interleaved hi-res stereo writer from mid/side (L=M+S, R=M-S). 24-bit PCM (is_float=0,
+   bps=3) or 32-bit float (is_float=1, bps=4). Mirrors wav_write_hres, 2 channels. */
+static inline int wav_write_hres_ms(const char *path, const double *mid, const double *side,
+                                    uint64_t n, uint32_t sr, int bps, int is_float){
+    FILE *f=fopen(path,"wb"); if(!f) return -1;
+    uint32_t dlen=(uint32_t)(n*2*bps), rlen=36+dlen, ba=(uint32_t)(2*bps), br=sr*ba;
+    uint8_t h[44]={0}; memcpy(h,"RIFF",4);
+    h[4]=rlen;h[5]=rlen>>8;h[6]=rlen>>16;h[7]=rlen>>24; memcpy(h+8,"WAVEfmt ",8);
+    h[16]=16; h[20]=(uint8_t)(is_float?3:1); h[22]=2;
+    h[24]=sr;h[25]=sr>>8;h[26]=sr>>16;h[27]=sr>>24;
+    h[28]=br;h[29]=br>>8;h[30]=br>>16;h[31]=br>>24;
+    h[32]=(uint8_t)ba; h[34]=(uint8_t)(bps*8); memcpy(h+36,"data",4);
+    h[40]=dlen;h[41]=dlen>>8;h[42]=dlen>>16;h[43]=dlen>>24;
+    fwrite(h,1,44,f);
+    for (uint64_t i=0;i<n;i++){ double s2[2]={mid[i]+side[i], mid[i]-side[i]};
+        for (int c=0;c<2;c++){ double v=s2[c];
+            if (is_float){ float fv=(float)v; fwrite(&fv,4,1,f); }
+            else { if(v>1)v=1; if(v<-1)v=-1; int32_t s=(int32_t)lrint(v*8388607.0);
+                   uint8_t b[3]={(uint8_t)s,(uint8_t)(s>>8),(uint8_t)(s>>16)}; fwrite(b,1,3,f); } } }
+    fclose(f); return 0;
+}
+static inline int wav_write24_ms (const char *p,const double *m,const double *s,uint64_t n,uint32_t sr){ return wav_write_hres_ms(p,m,s,n,sr,3,0); }
+static inline int wav_write_f32_ms(const char *p,const double *m,const double *s,uint64_t n,uint32_t sr){ return wav_write_hres_ms(p,m,s,n,sr,4,1); }
 /* Interleaved 16-bit stereo writer from mid/side (L=M+S, R=M-S). */
 static inline int wav_write16_ms(const char *path, const double *mid, const double *side, uint64_t n, uint32_t sr){
     FILE *f=fopen(path,"wb"); if(!f) return -1;

@@ -1,9 +1,12 @@
-# demod-quanta v0.1.0
+# demod-quanta
 
 Analysis-to-synthesis compiler: decompose audio into **Gabor acoustic quanta**
 (Mallat–Zhang matching pursuit) plus a transient layer and a deterministic
 noise residual, then **freeze the score into a pure static Faust program** —
-a lossy codec whose decoder is a Faust program.
+a codec whose decoder is a Faust program. It spans the quality spectrum: a ~700 bps
+concatenative speech vocoder at one end, and a **bit-transparent** hi-res tier
+(`--coherent`, nulls the source below its own LSB) at the other — both freezing to a
+static `.dsp`.
 
 Part of the DeMoD instrument platform. Spec: `docs/SPEC.md`.
 
@@ -26,16 +29,21 @@ with bounded memory and bridges to a byte-exact QSC.
 ## Build
 
 ```
-make            # gcc, -std=c11; bin/quanta-{analyzer,render,freeze,stream,stream-decode}
+make            # gcc, -std=c11; bin/quanta-{analyzer,render,freeze,stream,stream-decode,
+                #                            unit-enroll,unit-encode,unit-render,unit-freeze,...}
 make test       # full verification loop incl. streaming gates (needs faust + python3-numpy)
-nix develop     # devshell with gcc, faust, python3+numpy   [not exercised in CI yet]
+make transparency  # Track-B honest hi-res source-transparency report (fetches a CC0 clip)
+make coherent      # bit-transparent tier: --coherent nulls the SOURCE + freezes
+make unit-null     # speech acoustic-unit vocoder: frozen .dsp nulls the C reference
+nix develop     # devshell with gcc, faust, python3+numpy, lua5.4
 ```
 
 ## Usage
 
 ```
 bin/quanta-analyzer in.wav -o score.qsc [--quality 0..10 | --k 2048 --snr 45] [--seed 0xDEC0DE] [--stereo]
-bin/quanta-render   score.qsc [--k N] [--g0 G --g1 G --g2 G] [--wav out.wav] [--raw out.f64]
+                    [--coherent [--cbits 8..16]]   # bit-transparent tier: store the true residual
+bin/quanta-render   score.qsc [--k N] [--g0 G --g1 G --g2 G] [--bits 16|24|32f] [--no-cres] [--wav out.wav] [--raw out.f64]
 bin/quanta-freeze   score.qsc -o frozen.dsp [--k N] [--verify] [--lua ui/score.lua]
 faust -lang c -double -cn quanta -a arch/minimal_c.arch frozen.dsp -o gen.c
 ./demod-ui ui/quanta_panel.lua        # score browser (demod-ui framework)
@@ -121,6 +129,42 @@ artifact's output stage, not modeling error — it costs ~14 dB of raw
 phase-sensitive SNR at mid frequencies if uncompensated) and use a −80 dB
 frame-peak-relative spectral floor (absolute floors let empty bins of
 synthetic sources dominate LSD).
+
+## Hi-res + the bit-transparent tier (coherent residual)
+
+The default codec is lossy: it models tonal content as atoms and stands in for
+everything else with the 24-band noise-substitution residual. Measured honestly
+against real 96 kHz / 24-bit CC0 masters, that tier is **perceptually
+transparent-leaning** (NMR median −7…−10 dB — error under the masking threshold on
+91–100 % of frames) but **not** waveform-transparent: matching pursuit saturates on
+the coherent partials, the rest is broadband noise, and source-SNR plateaus near
+14 dB regardless of atom budget. Gate: `make transparency`.
+
+**`--coherent` breaks that ceiling.** It stores the *true* post-atom residual
+`r = source − dcblock(atoms)` as a quantized layer (`QSC_FLAG_CRES`), added back
+after the DC blocker, so the decoder — and the frozen `.dsp` — null the **original
+recording**, not just the reference player:
+
+| tier | null vs source | coded (zstd) | notes |
+|---|---|---|---|
+| lossy (atoms + noise) | ~−3 dBFS | ~250 kbps | perceptually transparent, not bit-exact |
+| `--cbits 12` | **−90 dBFS** | ~307 kbps | inaudible; smaller than FLAC (527) |
+| `--cbits 16` | **−114 dBFS** | ~632 kbps | below the 16-bit source LSB; FLAC-class |
+
+One score, two tiers: the same `.qsc` decodes lossy (`--no-cres`) or bit-transparent.
+The frozen static `.dsp` nulls the C render to −280 dBFS (determinism) *and* the
+source to −114 dBFS — a bit-transparent decoder that is a pure Faust program. This
+is **not** a compression win over FLAC (the residual is high-entropy); the win is the
+scalable single file and the decoder-as-`.dsp`. Gate: `make coherent`. Hi-res I/O is
+24/32-bit + float, any rate, and the readers resolve `WAVE_FORMAT_EXTENSIBLE`.
+
+## Speech: acoustic-unit segment vocoder
+
+A separate front-end (`quanta-unit-{enroll,encode,render,freeze}`) bakes vowel/
+consonant units into a `.qinv` inventory and transmits unit-index + prosody as a
+`.qspu` stream — a sub-MELPe concatenative speech codec (~698 bps, STOI 0.83). Its
+deterministic synth path freezes to a `.dsp` that nulls the C reference to −292 dBFS.
+Gate: `make unit-null`.
 
 ## Determinism contract (spec §12)
 

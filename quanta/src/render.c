@@ -10,84 +10,28 @@
  * L = M+S, R = M-S.
  */
 #include "../include/qsc.h"
-
-/* Render one channel's voice bank + residual into out[0..N). Mono uses this once;
-   stereo uses it for M then S. Identical arithmetic to the historical mono path. */
-static void render_channel(const QscAtom *at, uint32_t nat, int P, uint32_t K,
-                           const uint16_t *gains, uint32_t FR, uint32_t HB, uint32_t seed,
-                           uint64_t N, double sr, const double *lg,
-                           const double *wtab, const double *stab, double *out){
-    for (uint64_t t=0;t<N;t++) out[t]=0.0;
-    uint32_t *voff = calloc((size_t)P+1, sizeof(uint32_t));
-    for (uint32_t i=0;i<nat;i++) voff[at[i].voice + 1]++;
-    for (int v=0;v<P;v++) voff[v+1]+=voff[v];
-
-    for (int v=0; v<P; v++){                              /* fixed order v=0..P-1 (§12.4) */
-        uint32_t idx = voff[v], end = voff[v+1];
-        for (uint64_t t=0; t<N; t++){
-            while (idx+1 < end && t >= at[idx+1].onset) idx++;
-            if (idx >= end) break;
-            const QscAtom *a = &at[idx];
-            if (a->rank >= K) continue;
-            int64_t tl = (int64_t)t - (int64_t)a->onset;
-            if (tl < 0 || tl >= (int64_t)a->dur) continue;
-            double x   = (double)tl / (double)a->dur;
-            double win = qsc_wlin(wtab, x * QSC_TAB);
-            double ph  = (double)a->freq * (double)tl / sr
-                       + (double)a->phase * (1.0/(2.0*M_PI));
-            double phf = ph - (double)(int64_t)ph;          /* ph >= 0 */
-            double sv  = qsc_slin(stab, phf * QSC_TAB);
-            out[t] += (double)a->amp * win * sv * lg[a->layer];
-        }
-    }
-    if (FR){                                              /* seeded LCG -> 24-band SVF */
-        QscSvf f[QSC_BANDS];
-        for (int b=0;b<QSC_BANDS;b++) qsc_svf_init(&f[b], qsc_band_fc(b), QSC_BAND_Q, sr);
-        int32_t st = 0;
-        for (uint64_t t=0; t<N; t++){
-            st = qsc_lcg_step(st, (int32_t)seed);
-            double nz = qsc_lcg_out(st);
-            double fpos = (double)t / (double)HB;
-            uint32_t f0 = (uint32_t)fpos; if (f0 > FR-1) f0 = FR-1;
-            uint32_t f1 = f0+1 < FR ? f0+1 : FR-1;
-            double fr = fpos - (double)f0;
-            double acc = 0.0;
-            for (int b=0;b<QSC_BANDS;b++){
-                double g0 = qsc_gain_dq(gains[(size_t)f0*QSC_BANDS+b]);
-                double g1 = qsc_gain_dq(gains[(size_t)f1*QSC_BANDS+b]);
-                acc += qsc_svf_bp(&f[b], nz) * (g0 + fr*(g1-g0));
-            }
-            out[t] += acc * lg[2];
-        }
-    }
-    free(voff);
-}
-
-/* master gain + DC blocker (fi.dcblocker: pole 0.995), in place. */
-static void master_dcblock(double *out, uint64_t N, double master){
-    double x1=0.0, y1=0.0;
-    for (uint64_t t=0;t<N;t++){
-        double x = out[t]*master;
-        double y = x - x1 + 0.995*y1;
-        x1 = x; y1 = y; out[t] = y;
-    }
-}
+#include "../include/qrender.h"   /* render_channel + master_dcblock (shared with analyzer) */
 
 int main(int argc, char **argv){
-    const char *inpath=NULL, *wavout=NULL, *rawout=NULL;
+    const char *inpath=NULL, *wavout=NULL, *rawout=NULL, *bitspec="16";
     uint32_t K = 0xFFFFFFFF;
     double lg[3] = {1.0,1.0,1.0}, master = 1.0;
+    int nocres = 0;   /* --no-cres: render the lossy atoms+noise tier from a coherent file */
     for (int i=1;i<argc;i++){
         if (!strcmp(argv[i],"--k")&&i+1<argc) K=(uint32_t)strtoul(argv[++i],0,0);
+        else if (!strcmp(argv[i],"--no-cres")) nocres=1;
         else if (!strcmp(argv[i],"--wav")&&i+1<argc) wavout=argv[++i];
         else if (!strcmp(argv[i],"--raw")&&i+1<argc) rawout=argv[++i];
+        else if (!strcmp(argv[i],"--bits")&&i+1<argc) bitspec=argv[++i]; /* 16|24|32f (hi-res) */
         else if (!strcmp(argv[i],"--master")&&i+1<argc) master=atof(argv[++i]);
         else if (!strcmp(argv[i],"--g0")&&i+1<argc) lg[0]=atof(argv[++i]);
         else if (!strcmp(argv[i],"--g1")&&i+1<argc) lg[1]=atof(argv[++i]);
         else if (!strcmp(argv[i],"--g2")&&i+1<argc) lg[2]=atof(argv[++i]);
         else inpath=argv[i];
     }
-    if (!inpath){ fprintf(stderr,"usage: quanta-render in.qsc [--k N] [--wav o.wav] [--raw o.f64]\n"); return 2; }
+    if (!inpath){ fprintf(stderr,"usage: quanta-render in.qsc [--k N] [--wav o.wav] [--bits 16|24|32f] [--raw o.f64]\n"); return 2; }
+    int wbits = !strcmp(bitspec,"24")?24 : (!strcmp(bitspec,"32f")||!strcmp(bitspec,"32"))?32 : 16;
+    #define WAV_WRITE(p,x,n,s) (wbits==24?wav_write24(p,x,n,s):wbits==32?wav_write_f32(p,x,n,s):wav_write16(p,x,n,s))
 
     Qsc q;
     int rc = qsc_read(inpath, &q);
@@ -100,13 +44,18 @@ int main(int argc, char **argv){
     int P = q.h.voice_count;
     uint32_t FR = q.h.residual_frames, HB = q.h.residual_hop;
     int cc = q.h.channel_count ? q.h.channel_count : 1;
+    /* coherent (bit-transparent) tier: atoms-only mix (noise off) + stored true residual,
+       added AFTER the DC blocker (§B). --no-cres falls back to the lossy atoms+noise tier. */
+    int cres_on = (q.h.flags & QSC_FLAG_CRES) && q.cres && !nocres;
+    uint32_t FRr = cres_on ? 0 : FR;
 
     if (cc <= 1){
         double *out = calloc(N, sizeof(double));
-        render_channel(q.atoms, q.h.atom_count, P, K, q.res_gains, FR, HB, q.h.noise_seed,
+        render_channel(q.atoms, q.h.atom_count, P, K, q.res_gains, FRr, HB, q.h.noise_seed,
                        N, sr, lg, wtab, stab, out);
         master_dcblock(out, N, master);
-        if (wavout) wav_write16(wavout, out, N, q.h.sample_rate);
+        if (cres_on){ double s=q.cres_scale[0]; for (uint64_t t=0;t<N;t++) out[t]+=(double)q.cres[t]*s; }
+        if (wavout) WAV_WRITE(wavout, out, N, q.h.sample_rate);
         if (rawout) raw_write_f64(rawout, out, N);
         double pk=0; for (uint64_t t=0;t<N;t++){ double a=fabs(out[t]); if(a>pk)pk=a; }
         fprintf(stderr,"render: %u atoms (K=%u) P=%d | %llu samples | peak %.3f (mono)\n",
@@ -118,12 +67,16 @@ int main(int argc, char **argv){
         uint32_t nM=split, nS=q.h.atom_count - split;
         size_t gblk = (size_t)FR*QSC_BANDS;
         double *oM = calloc(N,sizeof(double)), *oS = calloc(N,sizeof(double));
-        render_channel(q.atoms,        nM, P, K, q.res_gains,        FR, HB, q.h.noise_seed,
+        render_channel(q.atoms,        nM, P, K, q.res_gains,        FRr, HB, q.h.noise_seed,
                        N, sr, lg, wtab, stab, oM);
-        render_channel(q.atoms+split,  nS, P, K, q.res_gains+gblk,   FR, HB, q.h.noise_seed ^ QSC_SIDE_SEED_XOR,
+        render_channel(q.atoms+split,  nS, P, K, q.res_gains+gblk,   FRr, HB, q.h.noise_seed ^ QSC_SIDE_SEED_XOR,
                        N, sr, lg, wtab, stab, oS);
         master_dcblock(oM, N, master); master_dcblock(oS, N, master);
-        if (wavout) wav_write16_ms(wavout, oM, oS, N, q.h.sample_rate);
+        if (cres_on){ double s0=q.cres_scale[0], s1=q.cres_scale[1];
+            for (uint64_t t=0;t<N;t++){ oM[t]+=(double)q.cres[t]*s0; oS[t]+=(double)q.cres[N+t]*s1; } }
+        if (wavout){ if (wbits==24) wav_write24_ms(wavout, oM, oS, N, q.h.sample_rate);
+                     else if (wbits==32) wav_write_f32_ms(wavout, oM, oS, N, q.h.sample_rate);
+                     else wav_write16_ms(wavout, oM, oS, N, q.h.sample_rate); }
         if (rawout){                                       /* interleaved L,R f64 */
             double *il = malloc(sizeof(double)*2*N);
             for (uint64_t t=0;t<N;t++){ il[2*t]=oM[t]+oS[t]; il[2*t+1]=oM[t]-oS[t]; }

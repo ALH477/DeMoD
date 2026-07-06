@@ -3,6 +3,10 @@
 set -e
 cd "$(dirname "$0")/.."
 K=${K:-400}
+# Faust runtime headers (CInterface.h): Nix puts them at $faust/include, system
+# installs at /usr/share/faust. Resolve portably instead of hardcoding one.
+FINC="$(dirname "$(dirname "$(readlink -f "$(command -v faust)")")")/include"
+[ -f "$FINC/faust/gui/CInterface.h" ] || FINC=/usr/share/faust
 echo "== [1/7] test sources =="
 python3 tools/gen_test.py
 python3 tools/gen_tonal.py
@@ -14,7 +18,7 @@ echo "== [4/7] freeze -> Faust -> C -> render =="
 bin/quanta-freeze test/score.qsc -o test/out.dsp --verify
 faust -lang c -double -cn quanta -a arch/minimal_c.arch test/out.dsp -o test/gen.c
 gcc -O2 -std=c11 -Iinclude -Itest -ffp-contract=off -fno-fast-math -fwrapv \
-    -I/usr/share/faust test/harness.c -o test/harness -lm
+    -I"$FINC" test/harness.c -o test/harness -lm
 N=$(python3 -c "import numpy;print(len(numpy.fromfile('test/src.f64',dtype='<f8')))")
 ./test/harness $N 48000 test/fst.f64 test/fst.wav
 echo "== [5/7] NULL GATE: frozen Faust vs reference player (<= -120 dBFS) =="
@@ -37,7 +41,7 @@ echo "-- gate B: QSS bridge -> frozen Faust nulls (<= -120 dBFS) --"
 bin/quanta-freeze test/tonal_br.qsc -o test/br.dsp --verify >/dev/null
 faust -lang c -double -cn quanta -a arch/minimal_c.arch test/br.dsp -o test/gen.c
 gcc -O2 -std=c11 -Iinclude -Itest -ffp-contract=off -fno-fast-math -fwrapv \
-    -I/usr/share/faust test/harness.c -o test/br_harness -lm
+    -I"$FINC" test/harness.c -o test/br_harness -lm
 NB=$(python3 -c "import numpy;print(len(numpy.fromfile('test/sd_ref.f64',dtype='<f8')))")
 ./test/br_harness $NB 48000 test/br_fst.f64 /dev/null
 python3 tools/metrics.py null test/sd_ref.f64 test/br_fst.f64
@@ -141,7 +145,7 @@ bin/quanta-render test/stereo.qsc --raw test/stereo_ref.f64 >/dev/null 2>&1
 bin/quanta-freeze test/stereo.qsc -o test/stereo.dsp --verify >/dev/null 2>&1
 faust -lang c -double -cn quanta -a arch/minimal_c.arch test/stereo.dsp -o test/gen.c >/dev/null 2>&1
 gcc -O2 -std=c11 -Iinclude -Itest -ffp-contract=off -fno-fast-math -fwrapv \
-    -I/usr/share/faust test/harness.c -o test/stereo_harness -lm
+    -I"$FINC" test/harness.c -o test/stereo_harness -lm
 ./test/stereo_harness 48000 48000 test/stereo_fst.f64 /dev/null >/dev/null 2>&1
 echo "-- stereo null: frozen Faust vs stereo render (interleaved L,R) --"
 python3 tools/metrics.py null test/stereo_ref.f64 test/stereo_fst.f64
@@ -160,7 +164,7 @@ bin/quanta-render test/score_up.qsc --raw test/i_ref.f64 >/dev/null 2>&1
 bin/quanta-freeze test/score_up.qsc -o test/i.dsp --verify >/dev/null 2>&1
 faust -lang c -double -cn quanta -a arch/minimal_c.arch test/i.dsp -o test/gen.c >/dev/null 2>&1
 gcc -O2 -std=c11 -Iinclude -Itest -ffp-contract=off -fno-fast-math -fwrapv \
-    -I/usr/share/faust test/harness.c -o test/i_h -lm
+    -I"$FINC" test/harness.c -o test/i_h -lm
 NB=$(python3 -c "import struct;print(struct.unpack('>Q',open('test/score_up.qsc','rb').read()[12:20])[0])")
 ./test/i_h "$NB" 48000 test/i_fst.f64 /dev/null >/dev/null 2>&1
 echo "-- determinism: frozen transformed-score vs its render (<= -120 dBFS) --"
