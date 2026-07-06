@@ -24,6 +24,20 @@ typedef struct DmApp DmApp;
 typedef struct DmEncoder DmEncoder;   /* USB serial / Arduino encoder (input.h) */
 typedef struct DmGamepad DmGamepad;   /* SDL game controllers (gamepad.h) */
 typedef struct DmMidi    DmMidi;      /* MIDI input source (input.h) */
+typedef struct DmArContext DmArContext; /* AR passthrough layer (ar.h; DEMOD_AR) */
+typedef struct DmPoseSource DmPoseSource; /* 6DOF head-tracking source (ar.h; DEMOD_AR) */
+
+#ifdef DEMOD_XR
+/* Present-sink indirection (opt-in, make XR=1): when installed, replaces the
+ * default SDL-window present with a custom consumer of the CPU framebuffer —
+ * e.g. an OpenXR quad-layer swapchain (src/ar/xr_sink.c). NULL = the SDL path.
+ * Kept behind DEMOD_XR so default/ARHUD builds are byte-unchanged. */
+typedef struct DmPresentSink {
+    void *ctx;
+    void (*present)(void *ctx, const DmFramebuffer *fb);
+    void (*destroy)(void *ctx);
+} DmPresentSink;
+#endif
 
 typedef struct {
     const char *title;
@@ -63,6 +77,14 @@ struct DmApp {
     int             window_w, window_h; /* true native window size (>= fb when capped) */
     int             max_render_h;       /* resolved render-height cap (0 = none) */
 
+#ifdef DEMOD_AR
+    DmArContext    *ar;             /* AR passthrough layer (NULL unless dm.ar opened) */
+    DmPoseSource   *pose;           /* 6DOF head tracking (NULL unless dm.pose opened) */
+#endif
+#ifdef DEMOD_XR
+    DmPresentSink  *present_sink;   /* NULL = default SDL present; else custom sink */
+#endif
+
     /* Main-loop state persisted across dm_app_frame() calls. On native builds
        these are set up once in dm_app_run and consumed by the while-loop's frame
        limiter; on the Emscripten build the loop is driven one frame per
@@ -86,6 +108,12 @@ struct DmApp {
 DmApp *dm_app_create(DmAppConfig config);
 void   dm_app_destroy(DmApp *app);
 int    dm_app_run(DmApp *app);
+
+#ifdef DEMOD_XR
+/* Create an OpenXR quad-layer present sink for this app (src/ar/xr_sink.c).
+ * Returns NULL if the runtime/headset is unavailable (caller keeps SDL). */
+DmPresentSink *dm_xr_sink_create(DmApp *app);
+#endif
 
 /* ── Lua Integration ───────────────────────────────────────────────── */
 

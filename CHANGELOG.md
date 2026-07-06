@@ -7,6 +7,24 @@ versioning while pre-1.0.
 ## [Unreleased]
 
 ### Added
+- **AR passthrough HUD** (opt-in, `make ARHUD=1`): composite the flat UI over a live
+  camera/video feed as a background layer, turning any Lua app into an instrument
+  overlay. New `dm.ar` binding (`open`/`config`/`status`/`close`) reads out-of-process
+  RGBA frames (file / mmap / POSIX shm triple-buffer / FIFO — decode stays out of the
+  UI, as with `auto/camera.lua`). Adds the `dm_fb_blit_scaled` (scale-to-fit /
+  opaque-copy) and `dm_fb_warp_barrel` (lens barrel-distortion) framebuffer
+  primitives. Supports mono and **side-by-side stereo** (`eyes=2`) with per-eye lens
+  correction (`k1`/`k2`) for Cardboard-style viewers, plus **6DOF head tracking** via
+  `dm.pose` → the `on_pose(x,y,z, qx,qy,qz,qw)` Lua callback. `examples/ar_hud.lua`
+  demo + `tools/ar_testframe.sh` synthetic producer + a headless `./dev test ar` gate.
+  The default build is byte-unchanged (`dm.ar`/`dm.pose` absent).
+- **OpenXR present sink** (opt-in, `make XR=1`, **UNTESTED reference scaffold**): a
+  `DmPresentSink` seam that routes the CPU framebuffer to an OpenXR head-locked quad
+  layer (`src/ar/xr_sink.c`) instead of the SDL window, so the software UI can float
+  as a panel in a headset. Compiles to a no-op stub without the OpenXR SDK (SDL
+  fallback); the live path needs an SDK + OpenGL context + headset and is documented
+  as needing hardware validation — see `docs/xr-sink.md`. Default/`ARHUD` builds are
+  byte-unchanged (no seam without `DEMOD_XR`).
 - **DeMoD Quanta codec** (`quanta/`, GPLv3-or-commercial): an analysis-to-synthesis
   audio compiler — a matching-pursuit analyzer turns a WAV into a `.qsc` score, and
   the freeze step compiles that score into a pure static Faust `.dsp` (the decoder is

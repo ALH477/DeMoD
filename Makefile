@@ -88,6 +88,35 @@ ifeq ($(DCF),1)
   OBJS += src/ipc/dm_dcf.o
 endif
 
+# ── Optional: AR passthrough HUD (dm.ar), enabled with ARHUD=1 ──────────────
+# Adds the dm.ar Lua binding (src/ar/*) — composites an out-of-process camera/
+# video RGBA feed under the UI as a background layer. Links libc only (decode
+# stays out-of-process, like auto/camera.lua). The default build is byte-
+# unchanged (dm.ar is then absent). NB: the flag is ARHUD, not AR — AR is GNU
+# Make's built-in archiver variable and must not be overridden.
+ifeq ($(ARHUD),1)
+  CFLAGS += -DDEMOD_AR
+  OBJS += src/ar/ar_source.o src/ar/ar_composite.o
+endif
+
+# ── Optional: OpenXR present sink (headset quad layer), enabled with XR=1 ──
+# UNTESTED reference scaffold (src/ar/xr_sink.c): presents the CPU framebuffer to
+# an OpenXR runtime as a head-locked quad layer. Without an SDK on the include
+# path the file compiles to a no-op stub (make XR=1 still builds+links). Point
+# DEMOD_OPENXR_SDK (gitignored, out-of-tree — Apache-2.0) at the SDK to enable
+# the live path; it also needs an OpenGL SDL window + a headset. See
+# docs/xr-sink.md. The default build is byte-unchanged (no present-sink seam).
+DEMOD_OPENXR_SDK ?= /path/to/openxr-sdk
+ifeq ($(XR),1)
+  CFLAGS += -DDEMOD_XR
+  OBJS   += src/ar/xr_sink.o
+  ifneq ($(wildcard $(DEMOD_OPENXR_SDK)/include),)
+    CFLAGS  += -I$(DEMOD_OPENXR_SDK)/include
+    LDFLAGS += -L$(DEMOD_OPENXR_SDK)/lib -Wl,-rpath,$(DEMOD_OPENXR_SDK)/lib \
+               -lopenxr_loader -lGL -lX11
+  endif
+endif
+
 # ── Feature-flag build guard ─────────────────────────────────────────
 # DCF/LOCAL_DSP/STEAM append -D defines + objects, but the generic %.o rule has
 # no dependency on them — so a prior build with a different flag set leaves stale
@@ -95,7 +124,7 @@ endif
 # `make DCF=1` after a plain `make` would silently leave dm.dcf absent). Record
 # the active flags; if they changed since the last build, drop the objects so they
 # recompile correctly. No more `make clean` dance when toggling DCF/LOCAL_DSP/STEAM.
-BUILD_TAG := DCF=$(DCF) LOCAL_DSP=$(LOCAL_DSP) STEAM=$(STEAM)
+BUILD_TAG := DCF=$(DCF) LOCAL_DSP=$(LOCAL_DSP) STEAM=$(STEAM) ARHUD=$(ARHUD) XR=$(XR)
 $(shell [ "`cat .build-tag 2>/dev/null`" = "$(BUILD_TAG)" ] || rm -f $(OBJS) $(BIN) .build-tag)
 
 # ── Targets ──────────────────────────────────────────────────────────
@@ -173,3 +202,6 @@ src/widgets/dsp_widgets.o:  include/demod/framebuffer.h include/demod/font.h inc
 src/lua/lua_bindings.o:     include/demod/app.h include/demod/widget.h
 src/app/app.o:              include/demod/app.h include/demod/widget.h
 src/main.o:                 include/demod/app.h
+src/ar/ar_source.o:         include/demod/ar.h include/demod/framebuffer.h include/demod/demod_triple_buf.h
+src/ar/ar_composite.o:      include/demod/ar.h include/demod/app.h include/demod/framebuffer.h
+src/ar/xr_sink.o:           include/demod/app.h include/demod/framebuffer.h

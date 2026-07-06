@@ -166,6 +166,28 @@ void dm_fb_blit_rect(DmFramebuffer *dst, const DmFramebuffer *src,
 void dm_fb_blit_alpha(DmFramebuffer *dst, const DmFramebuffer *src,
                       int dx, int dy, uint8_t alpha);
 
+/* Scale-to-fit blit (nearest-neighbor, 16.16 fixed-point).
+ *   STRETCH  — map src onto the whole dst_rect, ignoring aspect.
+ *   CONTAIN  — fit src inside dst_rect preserving aspect (letterbox; the
+ *              uncovered margin of dst_rect is left untouched).
+ *   COVER    — fill dst_rect preserving aspect, cropping src (centered).
+ * alpha==255 is an opaque direct write (also the framework's only opaque-copy
+ * blit — replaces dst, per-pixel src alpha ignored); alpha<255 alpha-blends the
+ * whole source by that factor. Respects dst->clip and dst->stride. */
+typedef enum { DM_FIT_STRETCH, DM_FIT_CONTAIN, DM_FIT_COVER } DmFitMode;
+void dm_fb_blit_scaled(DmFramebuffer *dst, const DmFramebuffer *src,
+                       DmRect dst_rect, DmFitMode fit, uint8_t alpha);
+
+/* Radial (barrel/pincushion) lens-distortion warp — the CPU stand-in for a VR
+ * headset's lens correction. Inverse-maps each dst pixel through
+ *   f = 1 + k1*r^2 + k2*r^4      (r normalized to the shorter half-axis)
+ * and nearest-neighbor samples src. `src` is expected to be the SAME size as
+ * dst_rect (a per-eye buffer); samples that fall outside src are left untouched
+ * (clear dst_rect to black first for a proper vignette). k1==k2==0 is identity.
+ * Respects dst->clip / dst->stride; alpha<255 alpha-blends the whole warp. */
+void dm_fb_warp_barrel(DmFramebuffer *dst, const DmFramebuffer *src,
+                       DmRect dst_rect, float k1, float k2, uint8_t alpha);
+
 #ifdef __cplusplus
 }
 #endif

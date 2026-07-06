@@ -48,6 +48,9 @@
 #ifdef DEMOD_DCF
 void dm_dcf_register(lua_State *L);   /* src/ipc/dm_dcf.c — dm.dcf UDP transport */
 #endif
+#ifdef DEMOD_AR
+void dm_ar_register(lua_State *L);    /* src/ar/ar_composite.c — dm.ar passthrough */
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1497,6 +1500,11 @@ void dm_lua_register(DmApp *app) {
     /* dm.dcf sub-table (DCF/HydraMesh UDP remote transport; DCF=1). Absent on
      * the default build so the DSP backends use the local socket path. */
     dm_dcf_register(L);
+#endif
+
+#ifdef DEMOD_AR
+    /* dm.ar sub-table (AR passthrough HUD; ARHUD=1). Absent on the default build. */
+    dm_ar_register(L);
 #endif
 
     /* dm.color constants */

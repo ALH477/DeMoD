@@ -372,6 +372,117 @@ void dm_fb_blit_alpha(DmFramebuffer *dst, const DmFramebuffer *src,
     }
 }
 
+void dm_fb_blit_scaled(DmFramebuffer *dst, const DmFramebuffer *src,
+                       DmRect dr, DmFitMode fit, uint8_t alpha) {
+    if (!dst || !src || !src->pixels || src->width <= 0 || src->height <= 0)
+        return;
+    if (dr.w <= 0 || dr.h <= 0) return;
+
+    /* Resolve the destination draw rect (ddr) and, at its top-left corner, the
+     * source coordinate + per-dest-pixel source step (source pixels per dest). */
+    DmRect ddr = dr;
+    float step_fx, step_fy;   /* source px per dest px */
+    float src_x_at, src_y_at; /* source coord sampled at ddr.x / ddr.y */
+
+    if (fit == DM_FIT_STRETCH) {
+        step_fx  = (float)src->width  / (float)dr.w;
+        step_fy  = (float)src->height / (float)dr.h;
+        src_x_at = src_y_at = 0.0f;
+    } else {
+        float sx = (float)dr.w / (float)src->width;
+        float sy = (float)dr.h / (float)src->height;
+        float s  = (fit == DM_FIT_COVER) ? (sx > sy ? sx : sy)
+                                         : (sx < sy ? sx : sy);
+        if (s <= 0.0f) return;
+        step_fx = step_fy = 1.0f / s;
+        float scaled_w = src->width  * s;
+        float scaled_h = src->height * s;
+        float off_x = (dr.w - scaled_w) * 0.5f;
+        float off_y = (dr.h - scaled_h) * 0.5f;
+        if (fit == DM_FIT_CONTAIN) {           /* letterbox inside dr */
+            ddr.x = dr.x + (int)(off_x + 0.5f);
+            ddr.y = dr.y + (int)(off_y + 0.5f);
+            ddr.w = (int)(scaled_w + 0.5f);
+            ddr.h = (int)(scaled_h + 0.5f);
+            src_x_at = src_y_at = 0.0f;
+        } else {                                /* COVER: fill dr, crop src */
+            ddr = dr;
+            src_x_at = -off_x / s;
+            src_y_at = -off_y / s;
+        }
+    }
+
+    DmRect area = dm_rect_intersect(ddr, dst->clip);
+    if (area.w <= 0 || area.h <= 0) return;
+
+    int32_t step_x = (int32_t)(step_fx * 65536.0f + 0.5f);
+    int32_t step_y = (int32_t)(step_fy * 65536.0f + 0.5f);
+    /* Source coord (16.16) at the clipped top-left, offset from ddr's origin. */
+    int64_t sx_start = (int64_t)((src_x_at + (area.x - ddr.x) * step_fx) * 65536.0f + 0.5f);
+    int64_t sy_fp    = (int64_t)((src_y_at + (area.y - ddr.y) * step_fy) * 65536.0f + 0.5f);
+
+    bool opaque = (alpha == 255);
+    for (int y = 0; y < area.h; y++) {
+        int sy = (int)(sy_fp >> 16);
+        if (sy < 0) sy = 0; else if (sy >= src->height) sy = src->height - 1;
+        const uint32_t *srow = src->pixels + (size_t)sy * src->stride;
+        uint32_t       *drow = dst->pixels + (size_t)(area.y + y) * dst->stride;
+        int64_t sx_fp = sx_start;
+        for (int x = 0; x < area.w; x++) {
+            int sx = (int)(sx_fp >> 16);
+            if (sx < 0) sx = 0; else if (sx >= src->width) sx = src->width - 1;
+            uint32_t sp = srow[sx];
+            int dx = area.x + x;
+            if (opaque) {
+                drow[dx] = sp;
+            } else {
+                DmColor sc = dm_color_unpack(sp);
+                sc.a = (uint8_t)((sc.a * alpha) / 255);
+                drow[dx] = blend_pixel(drow[dx], sc);
+            }
+            sx_fp += step_x;
+        }
+        sy_fp += step_y;
+    }
+}
+
+void dm_fb_warp_barrel(DmFramebuffer *dst, const DmFramebuffer *src,
+                       DmRect dr, float k1, float k2, uint8_t alpha) {
+    if (!dst || !src || !src->pixels || dr.w <= 0 || dr.h <= 0) return;
+
+    float cx   = dr.w * 0.5f;
+    float cy   = dr.h * 0.5f;
+    float norm = (dr.h < dr.w ? dr.h : dr.w) * 0.5f;  /* r=1 at the shorter edge */
+    if (norm <= 0.0f) return;
+    float inv = 1.0f / norm;
+
+    DmRect area = dm_rect_intersect(dr, dst->clip);
+    if (area.w <= 0 || area.h <= 0) return;
+
+    bool opaque = (alpha == 255);
+    for (int y = area.y; y < area.y + area.h; y++) {
+        float ny = ((y - dr.y) - cy) * inv;
+        uint32_t *drow = dst->pixels + (size_t)y * dst->stride;
+        for (int x = area.x; x < area.x + area.w; x++) {
+            float nx = ((x - dr.x) - cx) * inv;
+            float r2 = nx * nx + ny * ny;
+            float f  = 1.0f + k1 * r2 + k2 * r2 * r2;
+            int slx = (int)(cx + (float)((x - dr.x) - cx) * f + 0.5f);
+            int sly = (int)(cy + (float)((y - dr.y) - cy) * f + 0.5f);
+            if (slx < 0 || slx >= src->width || sly < 0 || sly >= src->height)
+                continue;  /* outside the source → vignette (leave dst as-is) */
+            uint32_t sp = src->pixels[(size_t)sly * src->stride + slx];
+            if (opaque) {
+                drow[x] = sp;
+            } else {
+                DmColor sc = dm_color_unpack(sp);
+                sc.a = (uint8_t)((sc.a * alpha) / 255);
+                drow[x] = blend_pixel(drow[x], sc);
+            }
+        }
+    }
+}
+
 /* ── Triangles ─────────────────────────────────────────────────────── */
 
 /*

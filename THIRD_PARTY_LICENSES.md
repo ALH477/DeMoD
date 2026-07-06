@@ -13,6 +13,7 @@ are MPL-2.0-compatible:
 | GNU Unifont glyph data (**not in this repo**; `tools/genfont.py` builds runtime `.dmf` glyph blobs from Unifont `.hex` releases) | SIL OFL-1.1 (Unifont is dual OFL-1.1 / GPL-2.0-or-later with font-embedding exception; used here under **OFL-1.1**) |
 | HydraMesh DCF codec headers (vendored header-only in `third_party/hydramesh/`; used by the opt-in `DCF=1` transport) | LGPL-3.0-only — from github.com/ALH477/HydraMesh, pinned commit in that dir's `README.md` |
 | Steamworks SDK (`libsteam_api.so`) — **Steam edition build only** (`make STEAM=1`) | Valve SDK Access Agreement (proprietary; **not in this repo**, referenced out-of-tree via `$DEMOD_STEAM_SDK`) |
+| OpenXR loader + headers — **OpenXR sink build only** (`make XR=1` with an SDK) | Apache-2.0 (**not in this repo**, referenced out-of-tree via `$DEMOD_OPENXR_SDK`; the `XR=1` scaffold is UNTESTED — see `docs/xr-sink.md`) |
 
 monocypher is unmodified and keeps its own (CC0/BSD-2) terms — it is **not** relicensed
 under the MPL. StreamDB is DeMoD's own embedded reverse-trie database, published as a

@@ -141,6 +141,43 @@ smoke_examples() {
   return $ok
 }
 
+# AR passthrough HUD: build with ARHUD=1, feed a synthetic RGBA frame, and
+# confirm the compositor produces a non-empty frame headlessly (no camera).
+# Exercises both the mono path and the stereo (SBS + lens warp + pose) path.
+ar_test() {
+  make ARHUD=1 >/dev/null 2>&1 || return 1
+  local frame pose ppm rc; frame="$(mktemp)"; pose="$(mktemp)"; ppm="$(mktemp)"; rc=0
+  tools/ar_testframe.sh "$frame" >/dev/null 2>&1 || { rm -f "$frame" "$pose" "$ppm"; return 1; }
+  printf '\x00\x00\xa0\x3f\x00\x00\x00\xbf\x00\x00\x00\x40\x00\x00\x00\x00\xcd\xcc\xcc\x3d\x00\x00\x00\x00\xa4\x70\x7d\x3f' > "$pose"
+  # mono
+  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy DEMOD_AR_FRAME="$frame" \
+    DEMOD_SHOT="$ppm" DEMOD_SHOT_FRAME=40 DEMOD_SHOT_QUIT=1 \
+    timeout 20 "$REPO/demod-ui" examples/ar_hud.lua >/dev/null 2>&1 || rc=1
+  [ -s "$ppm" ] || rc=1
+  # stereo SBS + barrel warp + head-tracking pose
+  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy DEMOD_AR_FRAME="$frame" \
+    DEMOD_AR_EYES=2 DEMOD_AR_K1=0.22 DEMOD_AR_K2=0.24 DEMOD_AR_POSE="$pose" \
+    DEMOD_SHOT="$ppm" DEMOD_SHOT_FRAME=40 DEMOD_SHOT_QUIT=1 \
+    timeout 20 "$REPO/demod-ui" examples/ar_hud.lua >/dev/null 2>&1 || rc=1
+  [ -s "$ppm" ] || rc=1
+  rm -f "$frame" "$pose" "$ppm"
+  return $rc
+}
+
+# OpenXR present sink: the live path can't run without a headset, but the seam +
+# stub (src/ar/xr_sink.c compiled without the SDK) must keep building and must
+# fall back to the SDL present. Guards the DEMOD_XR-gated app.c seam from bit-rot.
+xr_test() {
+  make XR=1 >/dev/null 2>&1 || return 1
+  local ppm rc; ppm="$(mktemp)"; rc=0
+  DEMOD_XR=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+    DEMOD_SHOT="$ppm" DEMOD_SHOT_FRAME=2 DEMOD_SHOT_QUIT=1 \
+    timeout 20 "$REPO/demod-ui" examples/hello.lua >/dev/null 2>&1 || rc=1
+  [ -s "$ppm" ] || rc=1   # stub returns NULL → SDL fallback still produces a frame
+  rm -f "$ppm"
+  return $rc
+}
+
 run_one_test() {
   case "$1" in
     font) make test ;;
@@ -149,14 +186,16 @@ run_one_test() {
     engine_e2e) bash audio-stack/bridge/test/engine_e2e.sh ;;
     obd2) bash auto/test/obd2_selftest.sh ;;
     smoke) smoke_examples ;;
-    *) die "unknown test '$1' (font|loopback|ws_loopback|engine_e2e|obd2|smoke|all)" ;;
+    ar) ar_test ;;
+    xr) xr_test ;;
+    *) die "unknown test '$1' (font|loopback|ws_loopback|engine_e2e|obd2|smoke|ar|xr|all)" ;;
   esac
 }
 
 cmd_test() {
   local n="${1:-all}"
   if [ "$n" = all ]; then
-    for t in font smoke obd2 loopback ws_loopback engine_e2e; do
+    for t in font smoke ar xr obd2 loopback ws_loopback engine_e2e; do
       say "test $t"; run_one_test "$t" || die "test '$t' failed"
     done
     say "all tests passed"
@@ -239,6 +278,8 @@ cmd_check() {
   chk "build (DCF=1)" bash -c 'make DCF=1 >/dev/null'
   chk "font/decode test" make test
   chk "example smoke (headless)" smoke_examples
+  chk "ar passthrough (ARHUD=1)" ar_test
+  chk "xr sink seam (XR=1 stub)" xr_test
   chk "obd2 reader" bash auto/test/obd2_selftest.sh
   chk "dcf loopback (UDP)" bash audio-stack/bridge/test/loopback.sh
   chk "dcf loopback (WebSocket)" bash audio-stack/bridge/test/ws_loopback.sh

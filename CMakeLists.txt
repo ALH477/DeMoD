@@ -120,6 +120,12 @@ if(DEMOD_CLIENT)
   set(DEMOD_DCF ON CACHE BOOL "Build the DCF/UDP remote transport (dm.dcf)" FORCE)
 endif()
 
+# DEMOD_AR: compile the dm.ar AR passthrough HUD binding. Off by default.
+option(DEMOD_AR "Build the AR passthrough HUD (dm.ar)" OFF)
+
+# DEMOD_XR: compile the OpenXR present-sink scaffold (UNTESTED). Off by default.
+option(DEMOD_XR "Build the OpenXR present sink (src/ar/xr_sink.c, UNTESTED)" OFF)
+
 # ── Dependencies: SDL2 + Lua 5.4 ────────────────────────────────────────────
 find_package(SDL2 QUIET)
 find_package(Lua QUIET)  # provides LUA_INCLUDE_DIR / LUA_LIBRARIES
@@ -195,9 +201,21 @@ set(LOCAL_SOURCES
 # DCF: the portable UDP remote transport (Winsock-shimmed via platform/compat.h).
 set(DCF_SOURCES src/ipc/dm_dcf.c)
 
+# AR: the AR passthrough compositor + frame source (dm.ar). libc only.
+set(AR_SOURCES src/ar/ar_source.c src/ar/ar_composite.c)
+
+# XR: the OpenXR present-sink scaffold. Compiles to a stub without the SDK.
+set(XR_SOURCES src/ar/xr_sink.c)
+
 set(DEMOD_SOURCES ${CORE_SOURCES} ${LOCAL_SOURCES})
 if(DEMOD_DCF)
   list(APPEND DEMOD_SOURCES ${DCF_SOURCES})
+endif()
+if(DEMOD_AR)
+  list(APPEND DEMOD_SOURCES ${AR_SOURCES})
+endif()
+if(DEMOD_XR)
+  list(APPEND DEMOD_SOURCES ${XR_SOURCES})
 endif()
 
 add_executable(demod-ui ${DEMOD_SOURCES})
@@ -214,6 +232,19 @@ target_include_directories(demod-ui PRIVATE
 
 if(DEMOD_DCF)
   target_compile_definitions(demod-ui PRIVATE DEMOD_DCF)
+endif()
+if(DEMOD_AR)
+  target_compile_definitions(demod-ui PRIVATE DEMOD_AR)
+endif()
+if(DEMOD_XR)
+  target_compile_definitions(demod-ui PRIVATE DEMOD_XR)
+  # Live path only: point OPENXR_SDK at an SDK to link the loader (+ GL/X11).
+  # Without it, xr_sink.c compiles to a stub (no extra link deps).
+  if(DEFINED OPENXR_SDK AND EXISTS "${OPENXR_SDK}/include")
+    target_include_directories(demod-ui PRIVATE "${OPENXR_SDK}/include")
+    target_link_directories(demod-ui PRIVATE "${OPENXR_SDK}/lib")
+    target_link_libraries(demod-ui PRIVATE openxr_loader GL X11)
+  endif()
 endif()
 if(DEMOD_CLIENT)
   target_compile_definitions(demod-ui PRIVATE DEMOD_CLIENT)

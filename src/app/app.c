@@ -9,6 +9,9 @@
 #include "demod/input.h"
 #include "demod/gamepad.h"
 #include "demod/ipc.h"
+#ifdef DEMOD_AR
+#include "demod/ar.h"            /* AR passthrough layer (make ARHUD=1) */
+#endif
 #include "../platform/compat.h" /* dm_now_ms — portable monotonic clock */
 #include <stdio.h>
 #include <stdlib.h>
@@ -105,6 +108,24 @@ static void dispatch_midi(DmApp *app, unsigned char status,
     }
     app->needs_redraw = true;
 }
+
+#ifdef DEMOD_AR
+/* Deliver a 6DOF pose to the Lua global on_pose(x,y,z, qx,qy,qz,qw). */
+static void dispatch_pose(DmApp *app, const float p[DM_POSE_FLOATS]) {
+    lua_getglobal(app->L, "on_pose");
+    if (lua_isfunction(app->L, -1)) {
+        for (int i = 0; i < DM_POSE_FLOATS; i++)
+            lua_pushnumber(app->L, p[i]);
+        if (lua_pcall(app->L, DM_POSE_FLOATS, 0, 0) != LUA_OK) {
+            fprintf(stderr, "[Lua] on_pose error: %s\n", lua_tostring(app->L, -1));
+            lua_pop(app->L, 1);
+        }
+    } else {
+        lua_pop(app->L, 1);
+    }
+    app->needs_redraw = true;
+}
+#endif
 
 int dm_app_midi_open(DmApp *app, const char *path) {
     if (!app || !path || !*path) return 0;
@@ -387,6 +408,14 @@ DmApp *dm_app_create(DmAppConfig config) {
 void dm_app_destroy(DmApp *app) {
     if (!app) return;
     demod_params_close();
+#ifdef DEMOD_AR
+    if (app->ar) dm_ar_close(app->ar);
+    if (app->pose) dm_pose_close(app->pose);
+#endif
+#ifdef DEMOD_XR
+    if (app->present_sink && app->present_sink->destroy)
+        app->present_sink->destroy(app->present_sink->ctx);
+#endif
     if (app->encoder)  dm_encoder_close(app->encoder);
     for (int i = 0; i < DM_MIDI_MAX_IN; i++)
         if (app->midi_in[i]) dm_midi_close(app->midi_in[i]);
@@ -488,6 +517,17 @@ static void dm_app_frame(void *arg) {
             dm_gamepad_update(app->gamepad, app->dt, gamepad_emit, app);
         }
 
+#ifdef DEMOD_AR
+        /* AR passthrough: a new camera frame forces a repaint even with no input,
+           so the video layer stays live; a stalled source polls false → no spin. */
+        if (app->ar && dm_ar_poll(app->ar)) app->needs_redraw = true;
+        /* Head tracking: deliver a fresh 6DOF pose to on_pose (same poll cadence). */
+        if (app->pose) {
+            float pose[DM_POSE_FLOATS];
+            if (dm_pose_poll(app->pose, pose)) dispatch_pose(app, pose);
+        }
+#endif
+
         /* Call Lua on_update if defined */
         lua_getglobal(app->L, "on_update");
         if (lua_isfunction(app->L, -1)) {
@@ -509,7 +549,15 @@ static void dm_app_frame(void *arg) {
         /* Render */
         if (app->needs_redraw) {
             double pt0 = app->loop_perf_on ? dm_now_ms() : 0.0;
-            dm_fb_clear(app->fb, app->theme->bg);
+#ifdef DEMOD_AR
+            /* Passthrough video is the base layer, replacing the background clear;
+               widgets and on_draw paint the HUD on top. Apps that opt into dm.ar
+               must keep their root transparent or overlays will hide the feed. */
+            if (app->ar && dm_ar_active(app->ar))
+                dm_ar_composite_background(app->ar, app->fb);
+            else
+#endif
+                dm_fb_clear(app->fb, app->theme->bg);
 
             /* Layout pass */
             dm_widget_layout(app->root);
@@ -531,6 +579,16 @@ static void dm_app_frame(void *arg) {
             }
             double pt1 = app->loop_perf_on ? dm_now_ms() : 0.0;
 
+            double pt2, pt3;
+#ifdef DEMOD_XR
+            /* A present sink (e.g. OpenXR quad layer) consumes the CPU
+               framebuffer directly, bypassing the SDL window present. */
+            if (app->present_sink && app->present_sink->present) {
+                app->present_sink->present(app->present_sink->ctx, app->fb);
+                pt2 = pt3 = app->loop_perf_on ? dm_now_ms() : 0.0;
+            } else
+#endif
+            {
             /* Present framebuffer to SDL texture */
             void *tex_pixels;
             int   tex_pitch;
@@ -541,12 +599,13 @@ static void dm_app_frame(void *arg) {
                        app->fb->width * sizeof(uint32_t));
             }
             SDL_UnlockTexture(app->texture);
-            double pt2 = app->loop_perf_on ? dm_now_ms() : 0.0;
+            pt2 = app->loop_perf_on ? dm_now_ms() : 0.0;
 
             SDL_RenderClear(app->renderer);
             SDL_RenderCopy(app->renderer, app->texture, NULL, NULL);
             SDL_RenderPresent(app->renderer);
-            double pt3 = app->loop_perf_on ? dm_now_ms() : 0.0;
+            pt3 = app->loop_perf_on ? dm_now_ms() : 0.0;
+            }
 
             if (app->loop_perf_on) {
                 app->loop_perf_fill += pt1 - pt0;
@@ -601,6 +660,16 @@ int dm_app_run(DmApp *app) {
     app->loop_perf_on = (perf_env && perf_env[0] && !(perf_env[0] == '0' && perf_env[1] == '\0'));
     app->loop_perf_fill = app->loop_perf_up = app->loop_perf_pres = 0;
     app->loop_perf_n = 0;
+
+#ifdef DEMOD_XR
+    /* DEMOD_XR=1 routes the framebuffer to an OpenXR headset (quad layer) instead
+       of the SDL window. Falls back to SDL if the runtime/headset is absent. */
+    {
+        const char *xr_env = getenv("DEMOD_XR");
+        if (xr_env && xr_env[0] && !(xr_env[0] == '0' && xr_env[1] == '\0'))
+            app->present_sink = dm_xr_sink_create(app);
+    }
+#endif
 
 #ifdef __EMSCRIPTEN__
     /* Browser: hand the loop to requestAnimationFrame (fps 0 = rAF cadence) and
