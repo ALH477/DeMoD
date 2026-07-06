@@ -76,5 +76,54 @@ ok = kb<=120.0 and st<=off+2.0
 print("gate E:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)
 PYEOF
+echo "== [F] TONAL-RESIDUAL GATE: residual-on tracks atoms-only on tonal; beats residual-off on broadband =="
+bin/quanta-render test/tonal.qsc        --raw test/f_ton_on.f64  >/dev/null 2>&1
+bin/quanta-render test/tonal.qsc --g2 0 --raw test/f_ton_off.f64 >/dev/null 2>&1
+bin/quanta-render test/score.qsc        --raw test/f_brd_on.f64  >/dev/null 2>&1
+bin/quanta-render test/score.qsc --g2 0 --raw test/f_brd_off.f64 >/dev/null 2>&1
+# use the project's canonical active-LSD (metrics.py: 2048/Hann, -80 dB floor, DC-blocker compensated)
+_al(){ python3 tools/metrics.py lsd "$1" "$2" 2>/dev/null | grep -oE "[0-9.]+ dB \(active\)" | grep -oE "^[0-9.]+"; }
+FT_ON=$(_al test/tonal.f64 test/f_ton_on.f64);  FT_OFF=$(_al test/tonal.f64 test/f_ton_off.f64)
+FB_ON=$(_al test/src.f64   test/f_brd_on.f64);  FB_OFF=$(_al test/src.f64   test/f_brd_off.f64)
+python3 - "$FT_ON" "$FT_OFF" "$FB_ON" "$FB_OFF" <<'PYEOF'
+import sys
+ton_on, ton_off, brd_on, brd_off = (float(x) for x in sys.argv[1:5])
+print(f"  tonal: residual-on {ton_on:.2f} dB vs atoms-only {ton_off:.2f} dB (delta {ton_on-ton_off:+.2f}, need <= 1.0)")
+print(f"  broadband: residual-on {brd_on:.2f} dB vs residual-off {brd_off:.2f} dB (need on < off)")
+ok = (ton_on-ton_off) <= 1.0 and brd_on < brd_off
+print("gate F:", "PASS" if ok else "FAIL")
+sys.exit(0 if ok else 1)
+PYEOF
+echo "== [P] PERCEPTUAL GATE (NMR): residual stays perceptually transparent on tonal content =="
+# relative regression gate (NMR is an uncalibrated proxy; an absolute MOS/transparency
+# threshold needs a listening study — see docs/FIDELITY.md). Reuses Gate F's renders.
+PON=$( python3 tools/perceptual.py nmr test/tonal.f64 test/f_ton_on.f64  48000 | sed -n 's/.*median \([-+0-9.]*\).*/\1/p')
+POFF=$(python3 tools/perceptual.py nmr test/tonal.f64 test/f_ton_off.f64 48000 | sed -n 's/.*median \([-+0-9.]*\).*/\1/p')
+python3 - "$PON" "$POFF" <<'PYEOF'
+import sys
+on, off = float(sys.argv[1]), float(sys.argv[2])
+print(f"  tonal NMR: residual-on {on:+.2f} dB vs atoms-only {off:+.2f} dB (need on <= off+0.5 and on < 0 = masked)")
+ok = on <= off + 0.5 and on < 0.0
+print("gate P:", "PASS" if ok else "FAIL")
+sys.exit(0 if ok else 1)
+PYEOF
+echo "== [Z] COMPRESSION GATE: quanta-pack .qsz round-trips deterministically, shrinks, stays near-transparent =="
+bin/quanta-pack compress   test/score.qsc test/score.qsz  2>test/z.log
+bin/quanta-pack decompress test/score.qsz test/score_rt.qsc  >/dev/null 2>&1
+bin/quanta-pack decompress test/score.qsz test/score_rt2.qsc >/dev/null 2>&1
+cmp -s test/score_rt.qsc test/score_rt2.qsc || { echo "gate Z FAIL: decompress not deterministic"; exit 1; }
+bin/quanta-render test/score.qsc    --raw test/z_orig.f64 >/dev/null 2>&1
+bin/quanta-render test/score_rt.qsc --raw test/z_pack.f64 >/dev/null 2>&1
+ZRATIO=$(sed -n 's/.* \([0-9.]*\)x .*/\1/p' test/z.log)
+ZO=$(python3 tools/perceptual.py nmr test/src.f64 test/z_orig.f64 48000 | sed -n 's/.*median \([-+0-9.]*\).*/\1/p')
+ZP=$(python3 tools/perceptual.py nmr test/src.f64 test/z_pack.f64 48000 | sed -n 's/.*median \([-+0-9.]*\).*/\1/p')
+python3 - "$ZRATIO" "$ZO" "$ZP" <<'PYEOF'
+import sys
+ratio, o, p = float(sys.argv[1]), float(sys.argv[2]), float(sys.argv[3])
+print(f"  ratio {ratio:.2f}x ; render NMR orig {o:+.2f} dB vs packed {p:+.2f} dB (need ratio > 1.5 and |delta| <= 0.5)")
+ok = ratio > 1.5 and abs(p-o) <= 0.5
+print("gate Z:", "PASS" if ok else "FAIL")
+sys.exit(0 if ok else 1)
+PYEOF
 echo ""
 echo "ALL GATES PASS  (M0 spec-target status documented in README §Verification)"

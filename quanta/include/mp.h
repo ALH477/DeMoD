@@ -109,4 +109,27 @@ static int near_onset(uint32_t center, const uint32_t *on, int no, uint32_t win)
     return 0;
 }
 
+/* ---------- residual tonality scale (§ROADMAP 1.1) ----------
+ * Encoder-only. Given the per-band residual energies of one residual frame,
+ * return a gain in [FLOOR,1] to scale the band gains before qsc_gain_q:
+ * on tonal (peaky) frames the deterministic-noise residual would fill spectral
+ * valleys with band-limited noise, so suppress it; on flat/noisy frames keep it.
+ * Measure = spectral flatness (SFM = geomean/mean of the band energies, floored
+ * at -60 dB re max). SFM~1 => flat/noise (scale->1); SFM~0 => tonal (scale->FLOOR).
+ * Never used by the audio path (mp.h is encoder-only), so libm here is fine. */
+static double residual_tonal_scale(const double *e, int n){
+    double emax = 0.0;
+    for (int b = 0; b < n; b++) if (e[b] > emax) emax = e[b];
+    if (emax <= 1e-30) return 1.0;                 /* silent frame: irrelevant */
+    double fl = emax * 1e-6;                        /* floor bins at -60 dB re max */
+    double sum = 0.0, logsum = 0.0;
+    for (int b = 0; b < n; b++){ double v = e[b] < fl ? fl : e[b]; sum += v; logsum += log(v); }
+    double sfm = exp(logsum / n) / (sum / n);       /* (0,1] */
+    const double lo = 0.10, hi = 0.55, FLOOR = 0.05;
+    double t = (sfm - lo) / (hi - lo);
+    if (t < 0.0) t = 0.0; else if (t > 1.0) t = 1.0;
+    double s = t*t*(3.0 - 2.0*t);                   /* smoothstep */
+    return FLOOR + (1.0 - FLOOR)*s;
+}
+
 #endif /* DEMOD_MP_H */

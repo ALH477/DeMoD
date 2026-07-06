@@ -48,6 +48,7 @@ typedef struct {
     uint16_t residual_hop;
     uint32_t residual_frames;
     uint32_t noise_seed;
+    uint8_t  channel_count;    /* offset 38: 1=mono, 2=mid/side stereo. 0 in legacy files ⇒ mono. */
 } QscHeader;
 
 typedef struct {
@@ -181,7 +182,8 @@ static inline int qsc_write(const char *path, const Qsc *q){
     be32w(p+20, q->h.atom_count);  be16w(p+24, q->h.voice_count);
     p[26]=q->h.scale_count; p[27]=q->h.band_count;
     be16w(p+28, q->h.residual_hop);be32w(p+30, q->h.residual_frames);
-    be32w(p+34, q->h.noise_seed);  /* 38..43 reserved zero */
+    be32w(p+34, q->h.noise_seed);
+    p[38] = q->h.channel_count ? q->h.channel_count : 1;  /* 38: channels; 39..43 reserved zero */
     p = buf + QSC_HEADER_SIZE;
     for (uint32_t i = 0; i < q->h.atom_count; i++, p += QSC_ATOM_SIZE){
         const QscAtom *a = &q->atoms[i];
@@ -218,6 +220,7 @@ static inline int qsc_read(const char *path, Qsc *q){
     q->h.residual_hop    = be16r(buf+28);
     q->h.residual_frames = be32r(buf+30);
     q->h.noise_seed      = be32r(buf+34);
+    q->h.channel_count   = buf[38] ? buf[38] : 1;      /* legacy 0 ⇒ mono */
     size_t asz = (size_t)q->h.atom_count * QSC_ATOM_SIZE;
     size_t gsz = (size_t)q->h.residual_frames * q->h.band_count * 2;
     if ((size_t)sz < QSC_HEADER_SIZE + asz + gsz + 4){ free(buf); return -2; }
@@ -292,6 +295,59 @@ static inline int wav_write16(const char *path, const double *x, uint64_t n, uin
 static inline int raw_write_f64(const char *path, const double *x, uint64_t n){
     FILE *f=fopen(path,"wb"); if(!f) return -1;
     size_t w=fwrite(x,8,n,f); fclose(f); return w==n?0:-1;
+}
+/* Stereo WAV reader → mid/side. Parses any channel count (mono ⇒ M=signal,S=0;
+   >2 ⇒ first two channels). M=(L+R)/2, S=(L-R)/2. Same chunk parse as
+   wav_read_mono; returns #frames (0 on failure), allocates *mid and *side. */
+static inline uint64_t wav_read_ms(const char *path, uint32_t *sr, double **mid, double **side){
+    FILE *f = fopen(path,"rb"); if(!f) return 0;
+    uint8_t h[12]; if (fread(h,1,12,f)!=12 || memcmp(h,"RIFF",4) || memcmp(h+8,"WAVE",4)){ fclose(f); return 0; }
+    uint16_t fmt=0,ch=0,bits=0; uint32_t rate=0; uint64_t ns=0; double *M=NULL,*S=NULL;
+    for (;;){
+        uint8_t ck[8]; if (fread(ck,1,8,f)!=8) break;
+        uint32_t len = ck[4]|ck[5]<<8|ck[6]<<16|(uint32_t)ck[7]<<24;
+        if (!memcmp(ck,"fmt ",4)){ uint8_t b[16]; if (fread(b,1,16,f)!=16) break;
+            fmt=b[0]|b[1]<<8; ch=b[2]|b[3]<<8; rate=b[4]|b[5]<<8|b[6]<<16|(uint32_t)b[7]<<24; bits=b[14]|b[15]<<8;
+            if (len>16) fseek(f,len-16,SEEK_CUR);
+        } else if (!memcmp(ck,"data",4)){
+            uint32_t bpf=(bits/8)*ch; if(!bpf) break; ns=len/bpf;
+            M=malloc(sizeof(double)*ns); S=malloc(sizeof(double)*ns);
+            uint8_t *raw=malloc(len); if (fread(raw,1,len,f)!=len){ free(raw);free(M);free(S);M=S=NULL; break; }
+            for (uint64_t i=0;i<ns;i++){ double v[2]={0,0};
+                for (int c=0;c<ch;c++){ const uint8_t *s=raw+i*bpf+c*(bits/8); double x=0;
+                    if (fmt==1&&bits==16){ int16_t t=(int16_t)(s[0]|s[1]<<8); x=t/32768.0; }
+                    else if (fmt==1&&bits==24){ int32_t t=(s[0]|s[1]<<8|s[2]<<16); if(t&0x800000)t|=~0xFFFFFF; x=t/8388608.0; }
+                    else if (fmt==3&&bits==32){ float fx; memcpy(&fx,s,4); x=fx; }
+                    if (c<2) v[c]=x; }
+                double L=v[0], R=(ch>=2)?v[1]:v[0];
+                M[i]=0.5*(L+R); S[i]=0.5*(L-R);
+            }
+            free(raw); break;
+        } else fseek(f, len+(len&1), SEEK_CUR);
+    }
+    fclose(f);
+    if (M){ *sr=rate; *mid=M; *side=S; return ns; }
+    free(M); free(S); return 0;
+}
+/* Interleaved 16-bit stereo writer from mid/side (L=M+S, R=M-S). */
+static inline int wav_write16_ms(const char *path, const double *mid, const double *side, uint64_t n, uint32_t sr){
+    FILE *f=fopen(path,"wb"); if(!f) return -1;
+    uint32_t dlen=(uint32_t)(n*4), rlen=36+dlen;
+    uint8_t h[44]={0}; memcpy(h,"RIFF",4);
+    h[4]=rlen;h[5]=rlen>>8;h[6]=rlen>>16;h[7]=rlen>>24; memcpy(h+8,"WAVEfmt ",8);
+    h[16]=16; h[20]=1; h[22]=2;                       /* PCM, 2 channels */
+    h[24]=sr;h[25]=sr>>8;h[26]=sr>>16;h[27]=sr>>24;
+    uint32_t br=sr*4; h[28]=br;h[29]=br>>8;h[30]=br>>16;h[31]=br>>24;
+    h[32]=4; h[34]=16; memcpy(h+36,"data",4);         /* block align 4 */
+    h[40]=dlen;h[41]=dlen>>8;h[42]=dlen>>16;h[43]=dlen>>24;
+    fwrite(h,1,44,f);
+    for (uint64_t i=0;i<n;i++){
+        double L=mid[i]+side[i], R=mid[i]-side[i];
+        if(L>1)L=1; if(L<-1)L=-1; if(R>1)R=1; if(R<-1)R=-1;
+        int16_t l=(int16_t)lrint(L*32767.0), r=(int16_t)lrint(R*32767.0);
+        uint8_t b[4]={(uint8_t)l,(uint8_t)(l>>8),(uint8_t)r,(uint8_t)(r>>8)}; fwrite(b,1,4,f);
+    }
+    fclose(f); return 0;
 }
 
 static const int QSC_SCALE_TAB[QSC_SCALES] =

@@ -84,16 +84,17 @@ static void flush_to(St *s, uint64_t newcomm, int is_flush){
         for (int b=0;b<QSC_BANDS;b++){ double y=qsc_svf_bp(&s->svf[b], s->r[i]); s->acc[b]+=y*y; }
         if ((i+1)%QSC_RES_HOP==0 || i+1==s->N){
             uint32_t fr=(uint32_t)(i/QSC_RES_HOP); uint64_t cnt=(i%QSC_RES_HOP)+1;
-            double g[QSC_BANDS], gCg=0;
-            for (int b=0;b<QSC_BANDS;b++){ g[b]=sqrt(s->acc[b]/cnt)/s->rho[b]; s->acc[b]=0; }
+            double g[QSC_BANDS], be[QSC_BANDS], gCg=0;
+            for (int b=0;b<QSC_BANDS;b++){ be[b]=s->acc[b]; g[b]=sqrt(s->acc[b]/cnt)/s->rho[b]; s->acc[b]=0; }
             for (int b=0;b<QSC_BANDS;b++){ double row=0;
                 for (int c=0;c<QSC_BANDS;c++) row+=s->Cm[b][c]*g[c]; gCg+=g[b]*row; }
             double ef=s->eacc/cnt; s->eacc=0;
             double trim=(gCg>1e-30)?sqrt(ef/gCg):1.0;
+            double ts=residual_tonal_scale(be, QSC_BANDS);   /* §ROADMAP 1.1 tonal suppression */
             if (nr>=rcap){ rcap=rcap?rcap*2:64; ridx=realloc(ridx,rcap*sizeof(uint32_t));
                            rg=realloc(rg,(size_t)rcap*QSC_BANDS*sizeof(uint16_t)); }
             ridx[nr]=fr;
-            for (int b=0;b<QSC_BANDS;b++){ uint16_t q=qsc_gain_q(g[b]*trim);
+            for (int b=0;b<QSC_BANDS;b++){ uint16_t q=qsc_gain_q(g[b]*trim*ts);
                 s->gains[(size_t)fr*QSC_BANDS+b]=q; rg[(size_t)nr*QSC_BANDS+b]=q; }
             nr++;
         }
@@ -124,7 +125,7 @@ int main(int argc, char **argv){
     }
     if (mode){
         if      (!strcmp(mode,"live"))    { if(cap<0)cap=1024; if(active<0)active=2048; if(rate<0)rate=1500; }
-        else if (!strcmp(mode,"near"))    { if(cap<0)cap=2048; if(active<0)active=4096; if(rate<0)rate=1100; }
+        else if (!strcmp(mode,"near"))    { if(cap<0)cap=1280; if(active<0)active=2560; if(rate<0)rate=1300; }
         else if (!strcmp(mode,"relaxed")) { if(cap<0)cap=4096; if(active<0)active=8192; if(rate<0)rate=700; }
         else { fprintf(stderr,"stream: unknown --mode '%s' (live|near|relaxed)\n",mode); return 2; }
     }

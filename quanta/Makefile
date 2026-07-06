@@ -1,8 +1,8 @@
-# demod-quanta v0.2.0-streaming — Copyright (c) 2026 DeMoD LLC
+# demod-quanta v0.2.1 — Copyright (c) 2026 DeMoD LLC
 CC      ?= gcc
 CFLAGS  ?= -O2 -std=c11 -Wall -Wextra -Iinclude \
            -ffp-contract=off -fno-fast-math -fwrapv
-BINS = bin/quanta-analyzer bin/quanta-render bin/quanta-freeze bin/quanta-stream bin/quanta-stream-decode
+BINS = bin/quanta-analyzer bin/quanta-render bin/quanta-freeze bin/quanta-stream bin/quanta-stream-decode bin/quanta-pack
 
 all: $(BINS)
 bin/quanta-%: src/%.c include/qsc.h include/mp.h include/qss.h include/qbits.h

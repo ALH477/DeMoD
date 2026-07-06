@@ -22,14 +22,25 @@ static int cmp_voice_onset(const void *a, const void *b){
 int main(int argc, char **argv){
     const char *inpath = NULL, *outpath = "score.qsc";
     int Kmax = 2048; double snr_db = 35.0, floor_amp = 1e-4; uint32_t seed = 0xDEC0DE;
+    double quality = -1.0;
     for (int i = 1; i < argc; i++){
         if (!strcmp(argv[i], "-o") && i+1<argc) outpath = argv[++i];
         else if (!strcmp(argv[i], "--k") && i+1<argc) Kmax = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--snr") && i+1<argc) snr_db = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--quality") && i+1<argc) quality = atof(argv[++i]);
         else if (!strcmp(argv[i], "--seed") && i+1<argc) seed = (uint32_t)strtoul(argv[++i],0,0);
         else inpath = argv[i];
     }
-    if (!inpath){ fprintf(stderr, "usage: quanta-analyzer in.wav [-o out.qsc] [--k N] [--snr dB]\n"); return 2; }
+    /* --quality Q (0..10): one VBR knob → SNR target (30..60 dB) + a generous atom
+       cap, so higher Q spends more atoms (bigger file) for higher fidelity. Overrides
+       --k/--snr. Pair with quanta-pack for a size/fidelity dial. */
+    if (quality >= 0.0){
+        if (quality > 10.0) quality = 10.0;
+        snr_db = 30.0 + 3.0*quality;
+        Kmax   = 16384;
+        fprintf(stderr, "  --quality %.1f -> snr target %.0f dB, k<=%d\n", quality, snr_db, Kmax);
+    }
+    if (!inpath){ fprintf(stderr, "usage: quanta-analyzer in.wav [-o out.qsc] [--k N] [--snr dB] [--quality 0..10]\n"); return 2; }
 
     uint32_t sr; uint64_t N;
     double *r = wav_read_mono(inpath, &sr, &N);
@@ -185,24 +196,26 @@ int main(int argc, char **argv){
     uint32_t frames = (uint32_t)((N + QSC_RES_HOP - 1)/QSC_RES_HOP);
     uint16_t *gains = calloc((size_t)frames*QSC_BANDS, sizeof(uint16_t));
     {
-        QscSvf f[QSC_BANDS]; double rho[QSC_BANDS];
-        /* calibration: RMS of unit LCG noise through each band, 48000 samps */
+        /* Band-coherence matrix C[b][c] (diag = rho_b^2), the analytic replacement
+           for the old closed-loop global-scalar trim. Enables a causal per-frame
+           trim (E_synth(frame) ~= gᵀCg, §ROADMAP 1.3) plus a per-frame tonality
+           scale that suppresses the noise floor on tonal frames (§ROADMAP 1.1).
+           Encoder-only: the residual gains are data, so freeze/null parity is
+           untouched. Mirrors the streaming encoder (src/stream.c flush_to). */
+        double C[QSC_BANDS][QSC_BANDS]; qsc_band_coherence(C, sr);
+        double rho[QSC_BANDS];
+        QscSvf f[QSC_BANDS];
         for (int b = 0; b < QSC_BANDS; b++){
             qsc_svf_init(&f[b], qsc_band_fc(b), QSC_BAND_Q, sr);
-            int32_t st = 0; double acc = 0;
-            for (int i = 0; i < 48000; i++){
-                st = qsc_lcg_step(st, (int32_t)0xC0FFEE);
-                double y = qsc_svf_bp(&f[b], qsc_lcg_out(st));
-                acc += y*y;
-            }
-            rho[b] = sqrt(acc/48000.0); if (rho[b] < 1e-9) rho[b] = 1e-9;
             f[b].ic1 = f[b].ic2 = 0.0;
+            rho[b] = sqrt(C[b][b]); if (rho[b] < 1e-9) rho[b] = 1e-9;
         }
         double *genv = calloc((size_t)frames*QSC_BANDS, sizeof(double));
-        double acc[QSC_BANDS] = {0};
-        double e_res_true = 0.0;
+        double *ef   = calloc(frames ? frames : 1, sizeof(double));  /* per-frame residual mean-sq */
+        double *tsf  = calloc(frames ? frames : 1, sizeof(double));  /* per-frame tonality scale   */
+        double acc[QSC_BANDS] = {0}; double eacc = 0.0;
         for (uint64_t i = 0; i < N; i++){
-            e_res_true += r[i]*r[i];
+            eacc += r[i]*r[i];
             for (int b = 0; b < QSC_BANDS; b++){
                 double y = qsc_svf_bp(&f[b], r[i]);
                 acc[b] += y*y;
@@ -210,35 +223,29 @@ int main(int argc, char **argv){
             if ((i+1) % QSC_RES_HOP == 0 || i+1 == N){
                 uint32_t fr = (uint32_t)(i/QSC_RES_HOP);
                 uint64_t cnt = (i % QSC_RES_HOP) + 1;
-                for (int b = 0; b < QSC_BANDS; b++){
+                for (int b = 0; b < QSC_BANDS; b++)
                     genv[(size_t)fr*QSC_BANDS + b] = sqrt(acc[b]/cnt)/rho[b];
-                    acc[b] = 0;
-                }
+                ef[fr]  = eacc/cnt;
+                tsf[fr] = residual_tonal_scale(acc, QSC_BANDS);
+                for (int b = 0; b < QSC_BANDS; b++) acc[b] = 0;
+                eacc = 0.0;
             }
         }
-        /* closed loop: mirror the renderer's synthesis path exactly */
-        for (int b = 0; b < QSC_BANDS; b++) f[b].ic1 = f[b].ic2 = 0.0;
-        int32_t st = 0; double e_syn = 0.0;
-        for (uint64_t t = 0; t < N; t++){
-            st = qsc_lcg_step(st, (int32_t)seed);
-            double nz = qsc_lcg_out(st);
-            double fpos = (double)t / (double)QSC_RES_HOP;
-            uint32_t f0 = (uint32_t)fpos; if (f0 > frames-1) f0 = frames-1;
-            uint32_t f1 = f0+1 < frames ? f0+1 : frames-1;
-            double frq = fpos - (double)f0;
-            double a = 0.0;
-            for (int b = 0; b < QSC_BANDS; b++){
-                double g0 = genv[(size_t)f0*QSC_BANDS+b];
-                double g1 = genv[(size_t)f1*QSC_BANDS+b];
-                a += qsc_svf_bp(&f[b], nz) * (g0 + frq*(g1-g0));
-            }
-            e_syn += a*a;
+        double tsum = 0.0;
+        for (uint32_t fr = 0; fr < frames; fr++){
+            double *g = &genv[(size_t)fr*QSC_BANDS];
+            double gCg = 0.0;
+            for (int b = 0; b < QSC_BANDS; b++){ double row = 0.0;
+                for (int c = 0; c < QSC_BANDS; c++) row += C[b][c]*g[c];
+                gCg += g[b]*row; }
+            double trim = (gCg > 1e-30) ? sqrt(ef[fr]/gCg) : 1.0;
+            tsum += tsf[fr];
+            for (int b = 0; b < QSC_BANDS; b++)
+                gains[(size_t)fr*QSC_BANDS + b] = qsc_gain_q(g[b]*trim*tsf[fr]);
         }
-        double trim = (e_syn > 1e-30) ? sqrt(e_res_true/e_syn) : 1.0;
-        for (size_t i = 0; i < (size_t)frames*QSC_BANDS; i++)
-            gains[i] = qsc_gain_q(genv[i]*trim);
-        free(genv);
-        fprintf(stderr, "  residual layer trim: %+.2f dB\n", 20.0*log10(trim));
+        free(genv); free(ef); free(tsf);
+        fprintf(stderr, "  residual: causal per-frame trim + tonality scale (mean %.2f)\n",
+                frames ? tsum/frames : 1.0);
     }
 
     QscAtom *fa = malloc(sizeof(QscAtom)*(kept?kept:1)); int m = 0;

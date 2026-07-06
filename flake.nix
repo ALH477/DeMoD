@@ -88,12 +88,12 @@
         # analyzer/render/freeze plus the streaming stream/stream-decode profile.
         quanta = pkgs.stdenv.mkDerivation {
           pname = "demod-quanta";
-          version = "0.2.0-streaming";
+          version = "0.2.1";
           src = ./quanta;
           buildPhase = "make";
           installPhase = ''
             mkdir -p $out/bin
-            cp bin/quanta-analyzer bin/quanta-render bin/quanta-freeze bin/quanta-stream bin/quanta-stream-decode $out/bin/
+            cp bin/quanta-analyzer bin/quanta-render bin/quanta-freeze bin/quanta-stream bin/quanta-stream-decode bin/quanta-pack $out/bin/
           '';
           meta = {
             description = "DeMoD Quanta — acoustic-quanta analyzer / Faust freeze compiler";
