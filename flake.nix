@@ -88,12 +88,12 @@
         # analyzer/render/freeze plus the streaming stream/stream-decode profile.
         quanta = pkgs.stdenv.mkDerivation {
           pname = "demod-quanta";
-          version = "0.3.0";
+          version = "0.3.1";
           src = ./quanta;
           buildPhase = "make";
           installPhase = ''
             mkdir -p $out/bin
-            cp bin/quanta-analyzer bin/quanta-render bin/quanta-freeze bin/quanta-stream bin/quanta-stream-decode bin/quanta-pack bin/quanta-score $out/bin/
+            cp bin/quanta-analyzer bin/quanta-render bin/quanta-freeze bin/quanta-stream bin/quanta-stream-decode bin/quanta-pack bin/quanta-score bin/quanta-speech-analyze bin/quanta-speech-render bin/quanta-speech-sines $out/bin/
           '';
           meta = {
             description = "DeMoD Quanta — acoustic-quanta analyzer / Faust freeze compiler";
@@ -198,7 +198,7 @@
             "Soft-real-time DeMoD audio engine + Quanta codec + WASM UI + HydraMesh DCF-Audio HLS monitor. DEV/soft-RT only — not representative of real hardware.";
           "org.opencontainers.image.source"      = "https://github.com/ALH477/DeMoD";
           "org.opencontainers.image.licenses"    = "MPL-2.0 AND GPL-3.0-only AND LGPL-3.0-only";
-          "org.opencontainers.image.version"     = "0.3.0";
+          "org.opencontainers.image.version"     = "0.3.1";
           "com.demod.soft-rt"                    = "true";
         };
 

@@ -71,7 +71,7 @@ LABEL org.opencontainers.image.title="DeMoD dev appliance" \
       org.opencontainers.image.description="Soft-real-time DeMoD audio engine + Quanta codec + WASM UI + HydraMesh DCF-Audio HLS monitor. DEV/soft-RT only — not representative of real hardware." \
       org.opencontainers.image.source="https://github.com/ALH477/DeMoD" \
       org.opencontainers.image.licenses="MPL-2.0 AND GPL-3.0-only AND LGPL-3.0-only" \
-      org.opencontainers.image.version="0.3.0" \
+      org.opencontainers.image.version="0.3.1" \
       com.demod.soft-rt="true"
 
 # 8080 = WASM UI + HLS monitor (HTTP) · 7000 = dcf-ws-bridge (WebSocket) ·

@@ -55,6 +55,15 @@ PACKAGES = ["demod-ui", "demod-rt", "demod-orchestrator", "demod-ui-dcf",
 QUANTA_K = 2048          # matching-pursuit atom budget
 QUANTA_SNR = 45.0        # pursuit stop SNR (dB)
 QUANTA_SEED = "0xDEC0DE" # residual noise LCG seed
+
+# Experimental speech vocoder (beat-MELPe track) lives in the STANDALONE quanta dev
+# tree (qvoc.py/qcodec.py + the Codec2/PESQ benchmark). Override with DEMOD_QUANTA_REPO.
+QUANTA_REPO = os.environ.get("DEMOD_QUANTA_REPO") or os.path.expanduser("~/Documents/demod-quanta")
+# The exact nix env the benchmark needs (python+pesq+numpy+scipy AND codec2) — this is
+# the long incantation the speech scoreboard/sweep would otherwise be typed by hand.
+NIX_PESQ_ENV = ('with builtins.getFlake "nixpkgs"; let p = legacyPackages.${builtins.currentSystem}; '
+                'in p.buildEnv { name="qbench"; paths=[ '
+                '(p.python3.withPackages(ps: with ps; [ pesq numpy scipy ])) p.codec2 ]; }')
 # Test harnesses (bridge/test).
 HARNESSES = {"loopback": "loopback.sh", "ws_loopback": "ws_loopback.sh",
              "engine_e2e": "engine_e2e.sh"}
@@ -416,14 +425,19 @@ def tool_quanta_compile(a):
     snr = float(a.get("snr", QUANTA_SNR))
     seed = str(a.get("seed", QUANTA_SEED))
     do_freeze = a.get("freeze", True)
+    quality = a.get("quality")           # 0..10 one-dial fidelity vs bitrate (overrides k/snr)
     try:
         bind = _quanta_bins()
     except Exception as ex:  # noqa: BLE001 — surface build failure to the agent
         return err(str(ex))
     work = tempfile.mkdtemp(prefix="demod-mcp-quanta-")
     qsc = os.path.join(work, "score.qsc")
-    rc, out, e = run([os.path.join(bind, "quanta-analyzer"), wav, "-o", qsc,
-                      "--k", str(k), "--snr", str(snr), "--seed", seed], timeout=600)
+    cmd = [os.path.join(bind, "quanta-analyzer"), wav, "-o", qsc, "--seed", seed]
+    if quality is not None:              # higher quality = more atoms, quieter noise residual
+        cmd += ["--quality", str(float(quality))]
+    else:
+        cmd += ["--k", str(k), "--snr", str(snr)]
+    rc, out, e = run(cmd, timeout=600)
     if rc != 0 or not os.path.exists(qsc):
         shutil.rmtree(work, ignore_errors=True)
         return err("quanta-analyzer failed (rc=%d)\n%s" % (rc, _tail(e or out)))
@@ -510,6 +524,55 @@ def tool_quanta_render(a):
     ]}
 
 
+# ── experimental speech vocoder (beat-MELPe) ─────────────────────────────────
+def _speech_repo_ok():
+    return os.path.isdir(QUANTA_REPO) and os.path.exists(os.path.join(QUANTA_REPO, "tools", "qvoc.py"))
+
+
+def tool_speech_code(a):
+    """Encode+decode a WAV through the quanta speech vocoder; report the coded
+    bitrate + MCD and write the decoded WAV. Plain python3+numpy (no nix)."""
+    if not _speech_repo_ok():
+        return err("quanta speech tree not found at %s (set DEMOD_QUANTA_REPO)" % QUANTA_REPO)
+    wav = a.get("wav") or ""
+    src = wav if os.path.isabs(wav) else os.path.join(QUANTA_REPO, wav)
+    if not os.path.exists(src):
+        return err("wav not found: %r" % wav)
+    outw = a.get("out") or os.path.join(tempfile.gettempdir(), "quanta_speech_out.wav")
+    rc, out, e = run(["python3", "tools/qspeech_cli.py", src, outw], timeout=300, cwd=QUANTA_REPO)
+    if rc != 0:
+        return err("speech encode/decode failed (rc=%d)\n%s" % (rc, _tail(e or out)))
+    return text("quanta speech codec:\n" + (out.strip() or "(no report)"))
+
+
+def tool_speech_bench(a):
+    """Run the beat-MELPe scoreboard: our vocoder vs Codec2 (700C/1300/2400) over the
+    multi-speaker PD corpus, tabulating PESQ + MCD + bitrate. Wraps the nix env that
+    provides pesq + codec2 (the long incantation), so it's one call."""
+    if not _speech_repo_ok():
+        return err("quanta speech tree not found at %s (set DEMOD_QUANTA_REPO)" % QUANTA_REPO)
+    script = a.get("script", "tools/bench_speech.py")
+    rc, out, e = run(["nix", "shell", "--impure", "--expr", NIX_PESQ_ENV,
+                      "--command", "python3", script], timeout=1200, cwd=QUANTA_REPO)
+    body = out + ("\n" + e if e else "")
+    return (text if rc == 0 else err)("beat-MELPe scoreboard (qvoc vs Codec2):\n" + _tail(body))
+
+
+def tool_speech_sweep(a):
+    """Sweep qvoc synthesis parameters and report mean PESQ per combo over the corpus
+    (one nix-env startup for all combos). `combos` is a Python list-of-dicts expression,
+    e.g. "[dict(pf_alpha=0.1,mix=m) for m in (0.1,0.2,0.3)]"."""
+    if not _speech_repo_ok():
+        return err("quanta speech tree not found at %s (set DEMOD_QUANTA_REPO)" % QUANTA_REPO)
+    combos = a.get("combos", "")
+    cmd = ["nix", "shell", "--impure", "--expr", NIX_PESQ_ENV, "--command",
+           "python3", "tools/sweep.py"]
+    if combos:
+        cmd.append(combos)
+    rc, out, e = run(cmd, timeout=1200, cwd=QUANTA_REPO)
+    return (text if rc == 0 else err)("qvoc parameter sweep:\n" + _tail(out + ("\n" + e if e else "")))
+
+
 TOOLS = [
     {"name": "demod_build", "description": "Build a DeMoD component with nix (demod-ui, demod-rt, demod-orchestrator, demod-remote-bridge, dcf-ws-bridge, demod-ui-dcf).",
      "inputSchema": {"type": "object", "properties": {"package": {"type": "string", "enum": PACKAGES}}},
@@ -523,11 +586,12 @@ TOOLS = [
     {"name": "demod_smoke", "description": "Run an example headless for a moment and confirm it boots with no Lua errors.",
      "inputSchema": {"type": "object", "properties": {"example": {"type": "string", "enum": EXAMPLES}}},
      "_fn": tool_smoke},
-    {"name": "demod_quanta_compile", "description": "DeMoD Quanta codec: compile a WAV into a matching-pursuit .qsc score and (by default) freeze it to a static Faust .dsp. Reports atoms/voices/residual dB + artifact paths.",
+    {"name": "demod_quanta_compile", "description": "DeMoD Quanta codec: compile a WAV into a matching-pursuit .qsc score and (by default) freeze it to a static Faust .dsp. Reports atoms/voices/residual dB + artifact paths. FIDELITY-vs-BITRATE levers: `quality` (0..10, the easy one-dial — higher = more atoms + a quieter noise-substitution residual, at more bits) OR the manual pair `k` (atom budget) / `snr` (pursuit stop). The residual is the light noise layer that stands in for high-frequency air the atoms don't model; raise quality/k/snr to reduce it.",
      "inputSchema": {"type": "object",
                      "properties": {"wav": {"type": "string", "description": "input WAV path (absolute or relative to the repo root)"},
-                                    "k": {"type": "integer", "description": "matching-pursuit atom budget (default 2048)"},
-                                    "snr": {"type": "number", "description": "pursuit stop SNR in dB (default 45)"},
+                                    "quality": {"type": "number", "description": "0..10 fidelity dial; higher = more atoms, quieter residual noise, more bits. Overrides k/snr when set."},
+                                    "k": {"type": "integer", "description": "matching-pursuit atom budget (default 2048; ignored if quality set)"},
+                                    "snr": {"type": "number", "description": "pursuit stop SNR in dB (default 45; ignored if quality set)"},
                                     "seed": {"type": "string", "description": "residual noise seed (default 0xDEC0DE)"},
                                     "freeze": {"type": "boolean", "description": "also emit the frozen .dsp (default true)"}},
                      "required": ["wav"]},
@@ -541,6 +605,18 @@ TOOLS = [
                                     "frame": {"type": "integer", "description": "frame to capture (default 90)"},
                                     "k": {"type": "integer"}, "snr": {"type": "number"}}},
      "_fn": tool_quanta_render},
+    {"name": "demod_speech_bench", "description": "beat-MELPe scoreboard: run the experimental quanta speech vocoder AND Codec2 (700C/1300/2400) over the multi-speaker PD corpus and tabulate PESQ (objective MOS) + MCD + bitrate. One call wraps the nix env that provides pesq + codec2.",
+     "inputSchema": {"type": "object", "properties": {"script": {"type": "string", "description": "benchmark script (default tools/bench_speech.py)"}}},
+     "_fn": tool_speech_bench},
+    {"name": "demod_speech_code", "description": "Encode+decode a WAV through the quanta speech vocoder (VQ codec) and report the coded bitrate + MCD, writing the decoded WAV. Fast (plain numpy).",
+     "inputSchema": {"type": "object",
+                     "properties": {"wav": {"type": "string", "description": "input WAV (absolute or relative to the quanta repo)"},
+                                    "out": {"type": "string", "description": "output WAV path (default a temp file)"}},
+                     "required": ["wav"]},
+     "_fn": tool_speech_code},
+    {"name": "demod_speech_sweep", "description": "Sweep qvoc synthesis parameters and report mean PESQ per combo over the corpus in one nix-env startup. `combos` is a Python list-of-dicts expression, e.g. \"[dict(pf_alpha=0.1,mix=m) for m in (0.1,0.2,0.3)]\".",
+     "inputSchema": {"type": "object", "properties": {"combos": {"type": "string", "description": "Python list-of-dicts of synth kwargs to sweep"}}},
+     "_fn": tool_speech_sweep},
     {"name": "demod_stack_up", "description": "Bring up a real rig (orchestrator + demod-rt on JACK, via pw-jack) that the demod_engine_* tools then drive by default. Guarded: SKIPs cleanly where JACK/RT privileges are absent. Persists until demod_stack_down.",
      "inputSchema": {"type": "object", "properties": {}},
      "_fn": tool_stack_up},

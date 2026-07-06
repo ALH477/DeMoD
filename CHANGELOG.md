@@ -43,6 +43,19 @@ versioning while pre-1.0.
 - Continuous integration (GitHub Actions): builds the framework, runs the UTF-8
   tests, the DCF loopback, and a headless render-smoke of every example.
 - Screenshots + an ecosystem section (ArchibaldOS / HydraMesh) in the README.
+- **Quanta speech back-end (v0.3.1)**: a from-scratch Harmonic + Noise / harmonic
+  minimum-phase **speech vocoder** — new C tools `quanta-speech-analyze` /
+  `-render` / `-sines` (QSP container `include/qsp.h`; McAulay–Quatieri continuous
+  cubic-phase synthesis; libm-free, Faust-freezable hot path) and a full Python
+  research + benchmark suite under `quanta/tools/` (`qvoc`/`qcodec`/`lsf`,
+  `bench_speech.py` vs **Codec2** with objective **PESQ**+MCD, LSF/predictive VQ
+  training). Honest results: the vocoder **ties Codec2-2400 uncompressed** at 8 kHz
+  and delivers **audibly superior wideband (16 kHz) speech** — a bandwidth Codec2/
+  MELPe are structurally locked out of — while **not** matching Codec2's narrowband
+  coding bit-efficiency (a deep, documented gap). MCP gains `demod_speech_bench` /
+  `_code` / `_sweep`, and `demod_quanta_compile` gains a `quality` (0..10) fidelity
+  dial for the noise-residual/bitrate trade. Flake `quanta` bumped 0.3.0 → 0.3.1
+  (ships the three speech CLIs).
 
 ### Fixed
 - `dm.viz_add_item` / `dm.control_add_item` dereferenced a boxed widget pointer as

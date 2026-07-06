@@ -34,7 +34,7 @@ nix develop     # devshell with gcc, faust, python3+numpy   [not exercised in CI
 ## Usage
 
 ```
-bin/quanta-analyzer in.wav -o score.qsc [--k 2048] [--snr 45] [--seed 0xDEC0DE]
+bin/quanta-analyzer in.wav -o score.qsc [--quality 0..10 | --k 2048 --snr 45] [--seed 0xDEC0DE] [--stereo]
 bin/quanta-render   score.qsc [--k N] [--g0 G --g1 G --g2 G] [--wav out.wav] [--raw out.f64]
 bin/quanta-freeze   score.qsc -o frozen.dsp [--k N] [--verify] [--lua ui/score.lua]
 faust -lang c -double -cn quanta -a arch/minimal_c.arch frozen.dsp -o gen.c
@@ -45,6 +45,25 @@ bin/quanta-stream        in.wav -o out.qss [--mode live|near|relaxed] [--qsc bri
                          [--lat-scale N] [--active N] [--rate atoms/s] [--hop N]
 bin/quanta-stream-decode out.qss [--raw out.f64] [--wav out.wav]
 ```
+
+### Fidelity vs bitrate — tuning the noise residual
+
+Quanta models tonal content as Gabor atoms and stands in for everything else
+(high-frequency air, breath, bow/room noise) with a **24-band noise-substitution
+residual** — a light, envelope-matched noise layer, mostly above ~6 kHz where the
+atoms don't reach. It is calibrated to the *true* residual level (not a gain error);
+it is the price of the codec's compactness. To trade bits for a quieter residual:
+
+- **`--quality 0..10`** (offline analyzer) — the one dial. Higher = more atoms and a
+  higher pursuit-stop SNR, so more of the signal is captured tonally and the residual
+  noise drops, at more bits. `0` favours bitrate; `10` favours fidelity.
+- **`--k` / `--snr`** — the manual pair behind the dial (atom budget / pursuit-stop
+  SNR in dB) when you want direct control. Ignored when `--quality` is set.
+- **streaming** — the `--mode live|near|relaxed` latency presets pick cap-appropriate
+  atom rates (see below); more latency buys a lower bitrate at comparable fidelity.
+
+These are exposed on the CLI above and via the `demod_quanta_compile` MCP tool
+(`quality` / `k` / `snr` params).
 
 Latency presets carry cap-appropriate default atom rates (larger cap → longer,
 more efficient atoms → lower rate, so voice pressure stays bounded): `live`
