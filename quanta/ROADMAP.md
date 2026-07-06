@@ -8,7 +8,7 @@ item ships with an acceptance gate** in the style of the current suite
 (`test/run.sh` gates 1–7 offline, A–E streaming), and nothing lands unless the
 gate is green and the change is honestly characterized.
 
-## Where things stand (v0.2.0)
+## Where things stand (v0.4.x)
 
 | Subsystem | State | Evidence |
 |---|---|---|
@@ -16,6 +16,16 @@ gate is green and the change is honestly characterized.
 | Streaming profile (commit-horizon MP, QSS container) | shipped | gate A bit-exact; gate B bridge→Faust −272.6 dBFS; gate C corrupt re-anchor |
 | Entropy coding (QSS2 = Rice + quantization) | shipped | 270→86 kbps (3.1×); gate D codec round-trip; gate E rate+fidelity |
 | Latency presets (live/near/relaxed, cap-scaled rate) | shipped | monotonic 98/83/64 kbps at ~1.8–2.2 dB atoms-LSD |
+| **Speech: acoustic-unit segment vocoder (C)** | shipped | `unit-{enroll,encode,render,freeze}`; ~698 bps, STOI 0.83; frozen `.dsp` nulls C reference −292 dBFS (`make unit-null`) |
+| **Track B: hi-res I/O + transparent preset** | shipped | 24/32-bit + float + `WAVE_FORMAT_EXTENSIBLE`; honest NMR on 96 k/24 CC0; frozen `.dsp` nulls player −280 dBFS at mastering scale (`make transparency`) |
+| **Track B: coherent-residual bit-transparent tier** | shipped | `--coherent` nulls the SOURCE −114 dBFS (below 24-bit LSB); frozen `.dsp` is itself source-transparent; `--cbits` transparency/bitrate knob (`make coherent`, spec §5.3) |
+
+The parametric codec now spans the full quality spectrum from a ~700 bps speech vocoder
+to a bit-transparent hi-res tier, with a static-`.dsp` decoder at every point. Remaining
+Track-B edges: teach `quanta-pack` (.qsz) the coherent layer (currently drops it — use
+zstd/gzip for honest coded size); optional 24-bit (int32) residual for a −140 dB null;
+B2 studio resynthesis + B3 through-line demo. The horizon items below predate these and
+some are now superseded.
 
 **Honest open edges** carried into this roadmap: the residual is a noise model
 that mis-serves pure-tone content at decode; the QSS packet transport is not yet

@@ -58,7 +58,8 @@ typedef struct {
 } QscAtom;
 
 /* ---- header flags (h.flags) ---- */
-#define QSC_FLAG_CRES  0x0001   /* a coherent residual layer follows the noise gains
+/* bit 0 (0x0001) reserved: psy-weighted (spec §4.4); bit 1 (0x0002) reserved: chirp present. */
+#define QSC_FLAG_CRES  0x0004   /* bit 2: a coherent residual layer follows the noise gains
                                    (Track B: bit-transparent tier). See qsc_write/qsc_read. */
 
 typedef struct {

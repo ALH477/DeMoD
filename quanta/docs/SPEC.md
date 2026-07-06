@@ -117,8 +117,8 @@ Binary, **big-endian** (DCF convention), fixed-size records, mmap-friendly. Layo
 |-----|------|-------|-------|
 | 0 | 4 | magic | `"QSC1"` |
 | 4 | 2 | version | `0x0001` |
-| 6 | 2 | flags | bit 0: psy-weighted; bit 1: chirp present |
-| 8 | 4 | sample_rate | 48000 canonical |
+| 6 | 2 | flags | bit 0: psy-weighted; bit 1: chirp present; **bit 2 (0x0004): coherent residual layer present (§5.3)** |
+| 8 | 4 | sample_rate | 48000 canonical; **any rate permitted (44.1/48/88.2/96/176.4/192 kHz)** — hi-res is a rate/depth choice at the WAV boundary only, the score is rate-agnostic |
 | 12 | 8 | source_len | samples, u64 |
 | 20 | 4 | atom_count | K_full |
 | 24 | 2 | voice_count | P |
@@ -147,6 +147,26 @@ Binary, **big-endian** (DCF convention), fixed-size records, mmap-friendly. Layo
 | 31 | 1 | flags | reserved |
 
 Atoms are stored **grouped by voice, onset-sorted within voice**, with a per-voice offset directory derivable from the records (voices own contiguous ranges). A 2048-atom score is 64 KiB of atoms plus residual gains — trivially shm-able and cheap enough to version-control.
+
+### 5.3 Coherent residual layer (bit-transparent tier, flag bit 2)
+
+The default residual (§4.5) is a **noise-substitution** model: 24 band gains driving a seeded-noise SVF bank. It reproduces the residual *spectral envelope* with a decorrelated phase realization — perceptually strong (masked on real music) but **not** waveform-transparent; measured against real 96 kHz/24-bit masters, source-SNR plateaus near 14 dB because matching pursuit saturates on the coherent partials and the remainder is broadband noise (see `docs/FIDELITY.md`).
+
+When `--coherent` is requested the encoder additionally stores the **true post-atom residual** so the decoder nulls the *source*, not merely the reference player. Let `y0(t) = dcblock(Σ atoms)` be the atoms-only output produced by the exact renderer arithmetic (§12; the noise layer is off, master gain 1). The residual `r = source − y0` is quantized per channel and appended **after** the residual-gain block, **before** the trailing CRC (the CRC covers it):
+
+```
+[header][atoms][residual gains][coherent residual][CRC-32]
+```
+
+Coherent-residual block (present iff flag bit 2):
+
+| Size | Field | Notes |
+|------|-------|-------|
+| 1 | cres_bits | quantizer precision, 8…16 |
+| cc × 4 | scale[c] | per-channel dequant scale, **f32** (encode/decode dequantize with the identical value) |
+| cc × source_len × 2 | samples | int16, big-endian, **channel-major** (`r[c·N + t]`); mid/side domain when stereo |
+
+Decode adds it back after the per-channel DC blocker: `out = dcblock(atoms) + samples·scale`. Because the scale is the exact `peak/(2^{bits-1}−1)`, the null-vs-source floor is `~peak/2^{bits}` — e.g. a 16-bit residual nulls a −14 dB-peak residual to ≈ −114 dBFS, below a 24-bit source's own LSB. The layer is optional and orthogonal: a decoder that ignores flag bit 2 (or renders `--no-cres`) reproduces the lossy tier exactly, so one score carries both a ~250 kbps lossy program and a bit-transparent one. `--cbits` trades null depth for bitrate. The frozen Faust artifact emits `r` as an int16 `waveform{}` table read by the sample counter and added post-`dcb`, so **the static `.dsp` is itself bit-transparent** (nulls source ≈ −114 dBFS while still nulling the C player to −280 dBFS). This is a capability, not a compression win: the residual is high-entropy, so at bit-exact depth the coded size is FLAC-class.
 
 ## 6. Exploration Runtime (`demod-rt` module)
 
@@ -430,6 +450,36 @@ crash. Normative bound: **`band_count ≤ QSC_BANDS` (24)** — a stream declari
 is rejected by `qss_read_header` (−3) and by `qss2_next_packet` (returns 0); decoders
 MUST NOT index residual state past 24 bands. (This closed a crafted-header stack
 overflow found by the fuzzer.)
+
+---
+
+## Appendix U. Acoustic-Unit Segment Vocoder (v0.4, speech)
+
+A concatenative speech front-end at the opposite end of the quality/bitrate spectrum
+from the mastering tier — sub-MELPe bitrate by transmitting *unit indices + prosody*
+instead of spectra. Four tools (`quanta-unit-{enroll,encode,render,freeze}`), two
+containers, big-endian + CRC-32 in the QSC/QSS discipline.
+
+- **Analysis** (shared, `include/qva.h`): 10 ms hop; per-frame cepstral spectral
+  envelope, NCCF f0 with octave-snap/median cleanup, per-band voicing, and order-16
+  LSFs (Levinson–Durbin + Chebyshev LPC↔LSF, `include/qlsf.h`).
+- **`.qinv` inventory** (`quanta-unit-enroll`): segments enrolled clips at LSF-change /
+  voicing boundaries (45–140 ms), resamples each to a fixed LSF trajectory, and either
+  k-means-clusters (LBG, `include/qvq.h`) or unit-selects them into a baked codebook +
+  per-unit voicing subpattern.
+- **`.qspu` stream** (`quanta-unit-encode`): per utterance, nearest-unit id + quantized
+  prosody contours (duration, log-f0, log-energy, voicing) — **≈698 bps, STOI 0.83**.
+- **Two synthesis paths** (mirrors the music `render.c`-vs-analyzer split, §12):
+  `qva_synth` is an FFT mixed-excitation minimum-phase vocoder (highest quality, offline
+  reference; does **not** map to Faust). `qva_synth_det` (`quanta-unit-render --det`) is
+  a deterministic time-domain path — piecewise-constant-per-frame continuous-phase
+  harmonic bank + white-LCG(§12.3)→all-pole `1/A(z)` noise + baked per-frame gain —
+  which **`quanta-unit-freeze` bakes to a static `.dsp`**. The frozen artifact nulls the
+  `--det` render to **−292 dBFS** (`make unit-null`), exactly as the music `frozen.dsp`
+  nulls `render.c` and not the analyzer.
+
+The `.qinv`/`.qspu` wire layouts are defined by `include/qspu.h` (48-byte header, CRC-32);
+this appendix is the behavioral reference. Frozen speech artifacts fall under §13.
 
 ---
 
