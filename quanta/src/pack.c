@@ -51,6 +51,10 @@ static void get_col(BitR *r, uint32_t *v, int n){
 
 static int compress(const char *inp, const char *outp){
     Qsc q; if (qsc_read(inp, &q) != 0){ fprintf(stderr,"pack: cannot read %s\n", inp); return 1; }
+    if (q.h.channel_count > 1){                 /* stereo .qsz not yet supported (would drop the channel tag) */
+        fprintf(stderr,"pack: stereo .qsc (channel_count=%u) not yet supported by quanta-pack\n", q.h.channel_count);
+        free(q.atoms); free(q.res_gains); return 2;
+    }
     uint32_t n = q.h.atom_count;
     uint32_t F = q.h.residual_frames, B = q.h.band_count;
     int vbits = bits_needed(q.h.voice_count ? q.h.voice_count : 1);

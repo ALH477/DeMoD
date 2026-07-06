@@ -125,5 +125,80 @@ ok = ratio > 1.5 and abs(p-o) <= 0.5
 print("gate Z:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)
 PYEOF
+echo "== [S] STEREO GATE: mid/side encode->decode->frozen-Faust nulls (<= -120 dBFS); image preserved =="
+python3 - <<'PYEOF'
+import numpy as np, struct
+sr=48000; n=48000; t=np.arange(n)/sr
+L=0.3*np.sin(2*np.pi*440*t)+0.10*np.sin(2*np.pi*880*t)
+R=0.3*np.sin(2*np.pi*443*t)+0.10*np.sin(2*np.pi*660*t)   # L != R -> genuine side channel
+il=np.empty(2*n); il[0::2]=L; il[1::2]=R
+d=(np.clip(il,-1,1)*32767).astype('<i2').tobytes()
+hdr=b'RIFF'+struct.pack('<I',36+len(d))+b'WAVEfmt '+struct.pack('<IHHIIHH',16,1,2,sr,sr*4,4,16)+b'data'+struct.pack('<I',len(d))
+open('test/stereo.wav','wb').write(hdr+d)
+PYEOF
+bin/quanta-analyzer test/stereo.wav -o test/stereo.qsc --k 2048 --snr 45 --stereo >/dev/null 2>&1
+bin/quanta-render test/stereo.qsc --raw test/stereo_ref.f64 >/dev/null 2>&1
+bin/quanta-freeze test/stereo.qsc -o test/stereo.dsp --verify >/dev/null 2>&1
+faust -lang c -double -cn quanta -a arch/minimal_c.arch test/stereo.dsp -o test/gen.c >/dev/null 2>&1
+gcc -O2 -std=c11 -Iinclude -Itest -ffp-contract=off -fno-fast-math -fwrapv \
+    -I/usr/share/faust test/harness.c -o test/stereo_harness -lm
+./test/stereo_harness 48000 48000 test/stereo_fst.f64 /dev/null >/dev/null 2>&1
+echo "-- stereo null: frozen Faust vs stereo render (interleaved L,R) --"
+python3 tools/metrics.py null test/stereo_ref.f64 test/stereo_fst.f64
+python3 - <<'PYEOF'
+import numpy as np, sys
+ref=np.fromfile('test/stereo_ref.f64'); L=ref[0::2]; R=ref[1::2]
+srms=np.sqrt(np.mean((0.5*(L-R))**2))
+print(f"  decoded side RMS {srms:.4f}  (>0 => stereo image present, not mono-collapsed)")
+sys.exit(0 if srms>1e-3 else 1)
+PYEOF
+echo "gate S: PASS"
+echo "== [I] INSTRUMENT GATE: score transforms preserve determinism; pitch transposes atoms =="
+bin/quanta-score pitch   test/score.qsc test/score_up.qsc   12  >/dev/null 2>&1
+bin/quanta-score density test/score.qsc test/score_thin.qsc 0.5 >/dev/null 2>&1
+bin/quanta-render test/score_up.qsc --raw test/i_ref.f64 >/dev/null 2>&1
+bin/quanta-freeze test/score_up.qsc -o test/i.dsp --verify >/dev/null 2>&1
+faust -lang c -double -cn quanta -a arch/minimal_c.arch test/i.dsp -o test/gen.c >/dev/null 2>&1
+gcc -O2 -std=c11 -Iinclude -Itest -ffp-contract=off -fno-fast-math -fwrapv \
+    -I/usr/share/faust test/harness.c -o test/i_h -lm
+NB=$(python3 -c "import struct;print(struct.unpack('>Q',open('test/score_up.qsc','rb').read()[12:20])[0])")
+./test/i_h "$NB" 48000 test/i_fst.f64 /dev/null >/dev/null 2>&1
+echo "-- determinism: frozen transformed-score vs its render (<= -120 dBFS) --"
+python3 tools/metrics.py null test/i_ref.f64 test/i_fst.f64
+bin/quanta-score  pitch test/score.qsc test/score_dn.qsc -12 >/dev/null 2>&1
+bin/quanta-render test/score.qsc    --g2 0 --raw test/i_a0.f64 >/dev/null 2>&1
+bin/quanta-render test/score_dn.qsc --g2 0 --raw test/i_a1.f64 >/dev/null 2>&1   # down an octave (no aliasing)
+python3 - <<'PYEOF'
+import numpy as np, numpy.fft as ft, struct, sys
+def cen(p):
+    x=np.fromfile(p); X=np.abs(ft.rfft(x*np.hanning(len(x))))+1e-12; f=np.fft.rfftfreq(len(x),1/48000)
+    return float(np.sum(f*X)/np.sum(X))
+r=cen('test/i_a1.f64')/cen('test/i_a0.f64')
+na=struct.unpack('>I',open('test/score.qsc','rb').read()[20:24])[0]
+nt=struct.unpack('>I',open('test/score_thin.qsc','rb').read()[20:24])[0]
+print(f"  pitch -12st atoms centroid ratio {r:.2f} (need < 0.7) ; density 50% {na}->{nt} atoms (need < {na})")
+sys.exit(0 if r<0.7 and nt<na else 1)
+PYEOF
+echo "-- lossless Lua score round-trip (atoms bit-exact) --"
+bin/quanta-score export test/score.qsc test/score.lua      >/dev/null 2>&1
+bin/quanta-score import test/score.lua test/score_rt.qsc   >/dev/null 2>&1
+bin/quanta-render test/score.qsc    --g2 0 --raw test/i_ao.f64 >/dev/null 2>&1
+bin/quanta-render test/score_rt.qsc        --raw test/i_rt.f64 >/dev/null 2>&1
+python3 tools/metrics.py null test/i_ao.f64 test/i_rt.f64 250
+echo "gate I: PASS"
+echo "== [V] BITSTREAM v1 GATE: canonical QSS2 stream + decode reproduce the frozen reference vectors =="
+bin/quanta-stream test/tonal.wav -o test/canon.qss --lat-scale 1280 --active 2560 --rate 1200 --hop 512 --seed 0xDEC0DE >/dev/null 2>&1
+bin/quanta-stream-decode test/canon.qss --raw test/canon.f64 >/dev/null 2>&1
+GQSS=f647c1ebab6f406c4e5a44003ee0cec0973918a98381a01731a3b69d756bfb86   # frozen v1 (this reference build)
+GF64=688a2b989a2979d834a8ca92ee7e9d26bc6e3f0bfc2d081880b915b375208ab5
+QS=$(sha256sum test/canon.qss | awk '{print $1}'); FS=$(sha256sum test/canon.f64 | awk '{print $1}')
+echo "  .qss ${QS:0:16}.. (frozen ${GQSS:0:16}..) ; decode .f64 ${FS:0:16}.. (frozen ${GF64:0:16}..)"
+if [ "$QS" = "$GQSS" ] && [ "$FS" = "$GF64" ]; then echo "gate V: PASS"
+else echo "gate V: FAIL — bitstream changed; if intentional, re-freeze the golden vectors"; exit 1; fi
+
+echo "== [Fz] FUZZ GATE: QSS packet reader survives malformed input (ASan + UBSan, no crash/OOB/UB) =="
+gcc -O1 -g -std=c11 -Iinclude -fsanitize=address,undefined -fno-omit-frame-pointer test/fuzz.c -o test/fuzz -lm
+ASAN_OPTIONS=abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./test/fuzz test/canon.qss 20000
+echo "gate Fz: PASS"
 echo ""
 echo "ALL GATES PASS  (M0 spec-target status documented in README §Verification)"

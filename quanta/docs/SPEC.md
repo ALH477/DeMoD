@@ -409,4 +409,28 @@ master DC-blocker). It is therefore **bit-exact** to `quanta-render`.
 
 ---
 
+## Appendix C. Bitstream v1 conformance & hardening (v0.3.0)
+
+The **QSS2** coded stream (magic `QSS2`) is **frozen as bitstream v1**. A conforming
+decoder MUST reproduce the reference decode from the reference stream, byte-for-byte
+(within the §12 numeric contract). The reference vectors are regenerated and checked
+by `test/run.sh` **gate V**:
+
+- **Stream:** `quanta-stream tonal.wav --lat-scale 1280 --active 2560 --rate 1200 --hop 512 --seed 0xDEC0DE`
+  → SHA-256 `f647c1eb…756bfb86` (this reference build).
+- **Decode:** `quanta-stream-decode` of that stream → f64 SHA-256 `688a2b98…75208ab5`.
+
+Any change to the on-wire format or the decode path changes these hashes and fails
+gate V; an intentional format change requires a version bump + re-frozen vectors.
+
+**Hardening (gate Fz).** The packet readers (`qss_read_header`, `qss2_next_packet`)
+are fuzzed (`test/fuzz.c`, ASan + UBSan) against flips, truncation, sync injection,
+and `band_count` fuzzing. Malformed streams MUST degrade to dropped packets, never
+crash. Normative bound: **`band_count ≤ QSC_BANDS` (24)** — a stream declaring more
+is rejected by `qss_read_header` (−3) and by `qss2_next_packet` (returns 0); decoders
+MUST NOT index residual state past 24 bands. (This closed a crafted-header stack
+overflow found by the fuzzer.)
+
+---
+
 *DeMoD LLC · demod.ltd · This document is the normative reference for `demod-quanta` v1. Changes require a version bump and a changelog entry.*

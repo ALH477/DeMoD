@@ -146,6 +146,7 @@ static inline int qss_read_header(const uint8_t *b, size_t n, QssHeader *h){
     h->residual_hop = be16r(b+24);
     h->noise_seed = be32r(b+26);
     h->flags = be16r(b+30);
+    if (h->band_count > QSC_BANDS) return -3;      /* malformed: reject (fixed decoder buffers) */
     return 0;
 }
 
@@ -257,6 +258,7 @@ typedef struct {
 static inline int qss2_next_packet(const uint8_t *b, size_t n, size_t *off,
                                    uint16_t band, QssCoder *co, QssPacket2 *pk){
     size_t p=*off;
+    if (band > QSC_BANDS){ *off=n; return 0; }     /* hardening: never index past row[QSC_BANDS] */
     while (p+2<=n && be16r(b+p)!=QSS_SYNC) p++;
     if (p+14>n){ *off=n; return 0; }
     const uint8_t *c0=b+p+2;

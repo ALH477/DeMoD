@@ -109,6 +109,10 @@ static inline double qsc_slin(const double *stab, double pos){
     int    a = i0 & (QSC_TAB - 1), b = (i0 + 1) & (QSC_TAB - 1);
     return stab[a] + fr * (stab[b] - stab[a]);
 }
+/* Side-channel residual decorrelation: in mid/side stereo the side channel drives
+   its noise LCG with (noise_seed ^ this), so its residual is independent of the mid
+   channel's. render.c and freeze.c MUST use this identical constant (§12 contract). */
+#define QSC_SIDE_SEED_XOR 0x5DEECE66u
 /* seeded LCG (§12.3): s0 = 0, s' = (s*A + C + seed) & M, out = s/2^30 - 1 */
 static inline int32_t qsc_lcg_step(int32_t s, int32_t seed){
     return (int32_t)((s * QSC_LCG_A + QSC_LCG_C + seed) & QSC_LCG_M);
@@ -171,8 +175,9 @@ static inline double qsc_gain_dq(uint16_t q){
 
 /* ---------------- QSC file I/O -------------------------------- */
 static inline int qsc_write(const char *path, const Qsc *q){
+    int    cc  = q->h.channel_count ? q->h.channel_count : 1;
     size_t asz = (size_t)q->h.atom_count * QSC_ATOM_SIZE;
-    size_t gsz = (size_t)q->h.residual_frames * q->h.band_count * 2;
+    size_t gsz = (size_t)q->h.residual_frames * q->h.band_count * cc * 2;
     size_t tot = QSC_HEADER_SIZE + asz + gsz + 4;
     uint8_t *buf = calloc(1, tot); if (!buf) return -1;
     uint8_t *p = buf;
@@ -192,7 +197,7 @@ static inline int qsc_write(const char *path, const Qsc *q){
         bef32w(p+20, a->phase); bef32w(p+24, a->chirp);
         p[28]=a->layer; p[29]=a->voice; p[30]=a->scale_idx; p[31]=a->flags;
     }
-    for (size_t i = 0; i < (size_t)q->h.residual_frames * q->h.band_count; i++, p += 2)
+    for (size_t i = 0; i < (size_t)q->h.residual_frames * q->h.band_count * cc; i++, p += 2)
         be16w(p, q->res_gains[i]);
     uint32_t crc = qsc_crc32(buf + QSC_HEADER_SIZE, asz + gsz);
     be32w(buf + 44, crc);                       /* header crc field */
@@ -222,7 +227,7 @@ static inline int qsc_read(const char *path, Qsc *q){
     q->h.noise_seed      = be32r(buf+34);
     q->h.channel_count   = buf[38] ? buf[38] : 1;      /* legacy 0 ⇒ mono */
     size_t asz = (size_t)q->h.atom_count * QSC_ATOM_SIZE;
-    size_t gsz = (size_t)q->h.residual_frames * q->h.band_count * 2;
+    size_t gsz = (size_t)q->h.residual_frames * q->h.band_count * q->h.channel_count * 2;
     if ((size_t)sz < QSC_HEADER_SIZE + asz + gsz + 4){ free(buf); return -2; }
     if (qsc_crc32(buf + QSC_HEADER_SIZE, asz + gsz) != be32r(buf + 44)){ free(buf); return -3; }
     q->atoms = malloc(sizeof(QscAtom) * (q->h.atom_count ? q->h.atom_count : 1));
@@ -235,7 +240,7 @@ static inline int qsc_read(const char *path, Qsc *q){
         a->layer = p[28]; a->voice = p[29]; a->scale_idx = p[30]; a->flags = p[31];
     }
     q->res_gains = malloc(gsz ? gsz : 2);
-    for (size_t i = 0; i < (size_t)q->h.residual_frames * q->h.band_count; i++, p += 2)
+    for (size_t i = 0; i < (size_t)q->h.residual_frames * q->h.band_count * q->h.channel_count; i++, p += 2)
         q->res_gains[i] = be16r(p);
     free(buf);
     return 0;

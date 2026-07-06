@@ -19,36 +19,21 @@ static int cmp_voice_onset(const void *a, const void *b){
     return 0;
 }
 
-int main(int argc, char **argv){
-    const char *inpath = NULL, *outpath = "score.qsc";
-    int Kmax = 2048; double snr_db = 35.0, floor_amp = 1e-4; uint32_t seed = 0xDEC0DE;
-    double quality = -1.0;
-    for (int i = 1; i < argc; i++){
-        if (!strcmp(argv[i], "-o") && i+1<argc) outpath = argv[++i];
-        else if (!strcmp(argv[i], "--k") && i+1<argc) Kmax = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "--snr") && i+1<argc) snr_db = atof(argv[++i]);
-        else if (!strcmp(argv[i], "--quality") && i+1<argc) quality = atof(argv[++i]);
-        else if (!strcmp(argv[i], "--seed") && i+1<argc) seed = (uint32_t)strtoul(argv[++i],0,0);
-        else inpath = argv[i];
-    }
-    /* --quality Q (0..10): one VBR knob → SNR target (30..60 dB) + a generous atom
-       cap, so higher Q spends more atoms (bigger file) for higher fidelity. Overrides
-       --k/--snr. Pair with quanta-pack for a size/fidelity dial. */
-    if (quality >= 0.0){
-        if (quality > 10.0) quality = 10.0;
-        snr_db = 30.0 + 3.0*quality;
-        Kmax   = 16384;
-        fprintf(stderr, "  --quality %.1f -> snr target %.0f dB, k<=%d\n", quality, snr_db, Kmax);
-    }
-    if (!inpath){ fprintf(stderr, "usage: quanta-analyzer in.wav [-o out.qsc] [--k N] [--snr dB] [--quality 0..10]\n"); return 2; }
+/* per-channel analysis result */
+typedef struct {
+    QscAtom  *fa; int m;         /* kept atoms (voice-grouped, onset-sorted) + count */
+    uint16_t *gains; uint32_t frames;
+    int P, no, dropped;
+    double e_res, e_src;
+} ChanResult;
 
-    uint32_t sr; uint64_t N;
-    double *r = wav_read_mono(inpath, &sr, &N);
-    if (!r){ fprintf(stderr, "analyzer: cannot read %s\n", inpath); return 1; }
-    if (sr != 48000) fprintf(stderr, "analyzer: note: sr=%u (canonical is 48000; proceeding)\n", sr);
-
-    qsc_build_tables(g_wtab, g_stab);
-
+/* Matching pursuit + residual model for one channel signal r[0..N) (modified in
+   place). This is the original mono path, extracted verbatim so it can be run once
+   (mono) or twice (mid + side) for stereo. Caller owns/frees r, result.fa,
+   result.gains. */
+static ChanResult analyze_channel(double *r, uint64_t N, uint32_t sr,
+                                  int Kmax, double snr_db, double floor_amp){
+    ChanResult R = {0};
     double e_src = 0.0; for (uint64_t i=0;i<N;i++) e_src += r[i]*r[i];
     double e_stop = e_src * pow(10.0, -snr_db/10.0);
 
@@ -141,9 +126,6 @@ int main(int argc, char **argv){
                 frame_analyze(T, r, N, (int)f, re, im, gated);
             }
         }
-        if ((K & 63) == 0)
-            fprintf(stderr, "  atom %4d  residual %+7.2f dB\n",
-                    K, 10.0*log10(e_res/e_src + 1e-30));
     }
 
     /* ---------- voice assignment (§4.7): rank-priority first-fit over
@@ -183,25 +165,15 @@ int main(int argc, char **argv){
         atoms[i].voice = (uint8_t)v; kept++;
     }
     for (int j = 0; j < P; j++) free(viv[j]);
-    if (dropped)
-        fprintf(stderr, "  voice cull: %d atoms (%.2f dB re source) -> residual\n",
-                dropped, 10.0*log10(e_drop/e_src + 1e-30));
+    (void)e_drop;
 
-    /* ---------- residual model (§4.5): unity-peak band envelopes divided by
-       noise-bank calibration rho_b, then a closed-loop broadband trim: the
-       analyzer synthesizes the layer exactly as the renderer will, measures
-       it, and scales all gains so total layer RMS == true residual RMS.
-       The trim absorbs band-overlap double counting and the coherent sum of
-       one noise source through overlapping filters. -------------------------- */
+    /* ---------- residual model (§4.5): unity-peak band envelopes / rho_b, with a
+       causal per-frame trim (E_synth ~= gᵀCg) plus a per-frame tonality scale that
+       suppresses the noise floor on tonal frames. Encoder-only; freeze/null parity
+       untouched. ------------------------------------------------------------- */
     uint32_t frames = (uint32_t)((N + QSC_RES_HOP - 1)/QSC_RES_HOP);
     uint16_t *gains = calloc((size_t)frames*QSC_BANDS, sizeof(uint16_t));
     {
-        /* Band-coherence matrix C[b][c] (diag = rho_b^2), the analytic replacement
-           for the old closed-loop global-scalar trim. Enables a causal per-frame
-           trim (E_synth(frame) ~= gᵀCg, §ROADMAP 1.3) plus a per-frame tonality
-           scale that suppresses the noise floor on tonal frames (§ROADMAP 1.1).
-           Encoder-only: the residual gains are data, so freeze/null parity is
-           untouched. Mirrors the streaming encoder (src/stream.c flush_to). */
         double C[QSC_BANDS][QSC_BANDS]; qsc_band_coherence(C, sr);
         double rho[QSC_BANDS];
         QscSvf f[QSC_BANDS];
@@ -211,8 +183,8 @@ int main(int argc, char **argv){
             rho[b] = sqrt(C[b][b]); if (rho[b] < 1e-9) rho[b] = 1e-9;
         }
         double *genv = calloc((size_t)frames*QSC_BANDS, sizeof(double));
-        double *ef   = calloc(frames ? frames : 1, sizeof(double));  /* per-frame residual mean-sq */
-        double *tsf  = calloc(frames ? frames : 1, sizeof(double));  /* per-frame tonality scale   */
+        double *ef   = calloc(frames ? frames : 1, sizeof(double));
+        double *tsf  = calloc(frames ? frames : 1, sizeof(double));
         double acc[QSC_BANDS] = {0}; double eacc = 0.0;
         for (uint64_t i = 0; i < N; i++){
             eacc += r[i]*r[i];
@@ -231,7 +203,6 @@ int main(int argc, char **argv){
                 eacc = 0.0;
             }
         }
-        double tsum = 0.0;
         for (uint32_t fr = 0; fr < frames; fr++){
             double *g = &genv[(size_t)fr*QSC_BANDS];
             double gCg = 0.0;
@@ -239,31 +210,95 @@ int main(int argc, char **argv){
                 for (int c = 0; c < QSC_BANDS; c++) row += C[b][c]*g[c];
                 gCg += g[b]*row; }
             double trim = (gCg > 1e-30) ? sqrt(ef[fr]/gCg) : 1.0;
-            tsum += tsf[fr];
             for (int b = 0; b < QSC_BANDS; b++)
                 gains[(size_t)fr*QSC_BANDS + b] = qsc_gain_q(g[b]*trim*tsf[fr]);
         }
         free(genv); free(ef); free(tsf);
-        fprintf(stderr, "  residual: causal per-frame trim + tonality scale (mean %.2f)\n",
-                frames ? tsum/frames : 1.0);
     }
 
     QscAtom *fa = malloc(sizeof(QscAtom)*(kept?kept:1)); int m = 0;
     for (int i = 0; i < K; i++) if (atoms[i].voice != 0xFF) fa[m++] = atoms[i];
     qsort(fa, m, sizeof(QscAtom), cmp_voice_onset);
 
-    Qsc q = {0};
-    q.h.flags=0; q.h.sample_rate=sr; q.h.source_len=N;
-    q.h.atom_count=(uint32_t)m; q.h.voice_count=(uint16_t)P;
-    q.h.scale_count=QSC_SCALES; q.h.band_count=QSC_BANDS;
-    q.h.residual_hop=QSC_RES_HOP; q.h.residual_frames=frames;
-    q.h.noise_seed=seed; q.atoms=fa; q.res_gains=gains;
-    if (qsc_write(outpath, &q)){ fprintf(stderr, "analyzer: write failed\n"); return 1; }
+    for (int si=0; si<QSC_SCALES; si++){ free(sc[si].win); free(sc[si].best_score);
+        free(sc[si].best_bin); free(sc[si].pa); free(sc[si].pb); free(sc[si].pc); }
+    free(re); free(im); free(onsets); free(atoms);
 
-    fprintf(stderr,
-        "analyzer: %s\n  %llu samples @ %u Hz | atoms %d (dropped %d) | voices %d\n"
-        "  onsets %d | residual %+.2f dB re source | seed 0x%08X -> %s\n",
-        inpath, (unsigned long long)N, sr, m, dropped, P, no,
-        10.0*log10(e_res/e_src + 1e-30), seed, outpath);
+    R.fa=fa; R.m=m; R.gains=gains; R.frames=frames;
+    R.P=P; R.no=no; R.dropped=dropped; R.e_res=e_res; R.e_src=e_src;
+    return R;
+}
+
+int main(int argc, char **argv){
+    const char *inpath = NULL, *outpath = "score.qsc";
+    int Kmax = 2048; double snr_db = 35.0, floor_amp = 1e-4; uint32_t seed = 0xDEC0DE;
+    double quality = -1.0; int stereo = 0;
+    for (int i = 1; i < argc; i++){
+        if (!strcmp(argv[i], "-o") && i+1<argc) outpath = argv[++i];
+        else if (!strcmp(argv[i], "--k") && i+1<argc) Kmax = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--snr") && i+1<argc) snr_db = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--quality") && i+1<argc) quality = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--stereo")) stereo = 1;
+        else if (!strcmp(argv[i], "--seed") && i+1<argc) seed = (uint32_t)strtoul(argv[++i],0,0);
+        else inpath = argv[i];
+    }
+    if (quality >= 0.0){
+        if (quality > 10.0) quality = 10.0;
+        snr_db = 30.0 + 3.0*quality; Kmax = 16384;
+        fprintf(stderr, "  --quality %.1f -> snr target %.0f dB, k<=%d\n", quality, snr_db, Kmax);
+    }
+    if (!inpath){ fprintf(stderr,
+        "usage: quanta-analyzer in.wav [-o out.qsc] [--k N] [--snr dB] [--quality 0..10] [--stereo]\n");
+        return 2; }
+
+    qsc_build_tables(g_wtab, g_stab);
+    uint32_t sr; double *M=NULL, *Sd=NULL;
+    uint64_t N = wav_read_ms(inpath, &sr, &M, &Sd);
+    if (!N){ fprintf(stderr, "analyzer: cannot read %s\n", inpath); return 1; }
+    if (sr != 48000) fprintf(stderr, "analyzer: note: sr=%u (canonical is 48000; proceeding)\n", sr);
+
+    double es = 0.0; for (uint64_t i=0;i<N;i++) es += Sd[i]*Sd[i];
+    int do_stereo = stereo && es > 1e-9;                  /* opt-in + non-trivial side */
+
+    ChanResult cm = analyze_channel(M, N, sr, Kmax, snr_db, floor_amp);
+    Qsc q = {0};
+    q.h.sample_rate=sr; q.h.source_len=N; q.h.scale_count=QSC_SCALES;
+    q.h.band_count=QSC_BANDS; q.h.residual_hop=QSC_RES_HOP;
+    q.h.residual_frames=cm.frames; q.h.noise_seed=seed;
+
+    if (!do_stereo){
+        q.h.channel_count=1; q.h.atom_count=(uint32_t)cm.m; q.h.voice_count=(uint16_t)cm.P;
+        q.atoms=cm.fa; q.res_gains=cm.gains;
+        if (qsc_write(outpath,&q)){ fprintf(stderr,"analyzer: write failed\n"); return 1; }
+        fprintf(stderr,
+            "analyzer: %s (mono)\n  %llu samples @ %u Hz | atoms %d (dropped %d) | voices %d\n"
+            "  onsets %d | residual %+.2f dB re source | seed 0x%08X -> %s\n",
+            inpath, (unsigned long long)N, sr, cm.m, cm.dropped, cm.P, cm.no,
+            10.0*log10(cm.e_res/cm.e_src + 1e-30), seed, outpath);
+        free(cm.fa); free(cm.gains);
+    } else {
+        ChanResult cs = analyze_channel(Sd, N, sr, Kmax, snr_db, floor_amp);
+        int tot = cm.m + cs.m;
+        QscAtom *all = malloc(sizeof(QscAtom)*(tot?tot:1));
+        for (int i=0;i<cm.m;i++){ all[i]        = cm.fa[i]; all[i].flags        &= (uint8_t)~1; }   /* mid  = flag bit0 = 0 */
+        for (int i=0;i<cs.m;i++){ all[cm.m+i]   = cs.fa[i]; all[cm.m+i].flags   |= 1; }              /* side = flag bit0 = 1 */
+        uint32_t fr = cm.frames;                            /* == cs.frames (same N) */
+        uint16_t *ag = malloc((size_t)fr*QSC_BANDS*2*sizeof(uint16_t));
+        memcpy(ag,                        cm.gains, (size_t)fr*QSC_BANDS*sizeof(uint16_t));
+        memcpy(ag+(size_t)fr*QSC_BANDS,   cs.gains, (size_t)fr*QSC_BANDS*sizeof(uint16_t));
+        q.h.channel_count=2; q.h.atom_count=(uint32_t)tot;
+        q.h.voice_count=(uint16_t)(cm.P>cs.P?cm.P:cs.P);
+        q.h.residual_frames=fr; q.atoms=all; q.res_gains=ag;
+        if (qsc_write(outpath,&q)){ fprintf(stderr,"analyzer: write failed\n"); return 1; }
+        fprintf(stderr,
+            "analyzer: %s (mid/side stereo)\n"
+            "  %llu samples @ %u Hz | atoms M=%d S=%d (dropped M=%d S=%d) | voices M=%d S=%d\n"
+            "  residual M %+.2f dB / S %+.2f dB | seed 0x%08X -> %s\n",
+            inpath, (unsigned long long)N, sr, cm.m, cs.m, cm.dropped, cs.dropped, cm.P, cs.P,
+            10.0*log10(cm.e_res/cm.e_src + 1e-30),
+            10.0*log10(cs.e_res/(cs.e_src + 1e-30) + 1e-30), seed, outpath);
+        free(cm.fa); free(cm.gains); free(cs.fa); free(cs.gains); free(all); free(ag);
+    }
+    free(M); free(Sd);
     return 0;
 }
