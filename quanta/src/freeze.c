@@ -192,6 +192,11 @@ int main(int argc, char **argv){
         (unsigned long long)q.h.source_len, q.h.sample_rate, m, P,
         q.h.noise_seed, cc, verify ? "[verify]" : "", (double)q.h.sample_rate, QSC_TAB);
 
+    /* bake length + rate so a frozen master compiled with arch/player.arch is a fully
+       self-contained program (knows its own duration and playback rate — spec §7, B3). */
+    fprintf(o, "declare samples \"%llu\";\ndeclare samplerate \"%u\";\n\n",
+            (unsigned long long)q.h.source_len, q.h.sample_rate);
+
     /* shared tables + helpers — byte-identical to the C reference (parity) */
     emit_table(o, "wtab", wtab, QSC_TAB);
     emit_table(o, "stab", stab, QSC_TAB);

@@ -21,7 +21,10 @@ transparency: all
 coherent: all
 	bash test/coherent.sh
 
+throughline: all
+	bash test/throughline.sh
+
 clean:
 	rm -rf bin test/*.f64 test/*.wav test/*.qsc test/gen.c test/harness \
 	       test/out.dsp test/src.wav
-.PHONY: all test unit-null transparency coherent clean
+.PHONY: all test unit-null transparency coherent throughline clean

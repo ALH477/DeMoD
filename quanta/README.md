@@ -197,6 +197,30 @@ normalization plus a closed loop — the analyzer synthesizes the layer exactly
 as the renderer will and trims all gains so layer RMS equals true residual
 RMS (trim is reported per file, typically −2..−5 dB).
 
+## Track B3 — the through-line (your master as a static program)
+
+The decoder is a file. A real 96 k/24 CC0 master compiles all the way to a
+self-contained standalone program (`arch/player.arch`) that *is* the recording —
+proven end to end by `make throughline` (see `docs/THROUGHLINE.md`):
+
+| gate | property | result |
+|---|---|---|
+| T1 | frozen `.dsp` nulls the C reference player (determinism) | −280.6 dBFS |
+| T2 | frozen `--coherent` `.dsp` nulls the **source** (bit-transparent) | −113.6 dBFS |
+| T3/T4 | generated audio loop is allocation-free **and** libm-free | 0 / 0 |
+| T5 | whole chain byte-reproducible (two full runs) | equal SHA-256 |
+| T6 | standalone player == offline harness | byte-identical |
+
+The player links only `libc`/`libm` (no audio library). Hear a frozen master:
+
+```
+bash tools/quanta-play.sh master.dsp [seconds]   # streams to pw-play/aplay/ffplay
+```
+
+Honest boundary: the win is decoder portability + determinism, **not** compression
+(the coherent residual is FLAC-class); "constant per-sample cost" is true by
+construction, not a benchmarked WCET; JH7110/U74/RV64 remain aspirational (spec §11).
+
 ## Layout
 
 ```

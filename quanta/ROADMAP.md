@@ -22,9 +22,12 @@ gate is green and the change is honestly characterized.
 
 The parametric codec now spans the full quality spectrum from a ~700 bps speech vocoder
 to a bit-transparent hi-res tier, with a static-`.dsp` decoder at every point. Remaining
-Track-B edges: teach `quanta-pack` (.qsz) the coherent layer (currently drops it — use
-zstd/gzip for honest coded size); optional 24-bit (int32) residual for a −140 dB null;
-B2 studio resynthesis + B3 through-line demo. The horizon items below predate these and
+B2 studio resynthesis (analytic pitch/stretch/eq/width on the score) and B3 through-line
+(`make throughline`: a real 96 k/24 master compiled to a dependency-free standalone player
+that nulls its source to −114 dBFS, allocation- and libm-free, byte-reproducible — see
+`docs/THROUGHLINE.md`) are **shipped**. Remaining Track-B edges: teach `quanta-pack` (.qsz)
+the coherent layer (currently drops it — use zstd/gzip for honest coded size); optional
+24-bit (int32) residual for a −140 dB null. The horizon items below predate these and
 some are now superseded.
 
 **Honest open edges** carried into this roadmap: the residual is a noise model

@@ -1,0 +1,131 @@
+/* SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
+ * arch/player.arch — demod-quanta standalone real-time player architecture.
+ *
+ * A frozen quanta `.dsp` compiled with this arch becomes a self-contained program
+ * that IS the master: it streams the baked score as interleaved PCM to stdout, with
+ * zero audio-library dependencies, so it plays in real time when piped to any system
+ * sink (`| pw-play`, `| aplay -f S24_LE ...`, `| ffplay -f s24le -`). Build:
+ *
+ *   faust -lang c -double -cn quanta -a arch/player.arch master.dsp -o player.c
+ *   gcc -O2 -std=c11 -ffp-contract=off -fno-fast-math -fwrapv player.c -o my_master -lm
+ *   ./my_master | pw-play --rate 96000 --channels 2 --format s24 --raw -
+ *
+ * The binary knows its own length and rate from `declare samples`/`declare samplerate`
+ * baked by quanta-freeze; --samples/--sr override. Formats: s24le (default, playback),
+ * --f32, --f64 (lossless raw, byte-identical to the offline harness — used by the
+ * throughline gate). Optional direct ALSA sink: compile -DQUANTA_ALSA -lasound, run --alsa.
+ */
+#define FAUSTFLOAT double            /* f64 audio path — load-bearing for the null (spec §12) */
+#include <math.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include "faust/gui/CInterface.h"
+static inline int max(int a, int b){ return a > b ? a : b; }
+static inline int min(int a, int b){ return a < b ? a : b; }
+<<includeIntrinsic>>
+<<includeclass>>
+
+/* --- capture length + rate baked by quanta-freeze (declare samples/samplerate) --- */
+static long long g_samples = -1;
+static int       g_rate    = -1;
+static void meta_declare(void* iface, const char* key, const char* value){
+    (void)iface;
+    if (!key || !value) return;
+    if      (!strcmp(key, "samples"))    g_samples = atoll(value);
+    else if (!strcmp(key, "samplerate")) g_rate    = atoi(value);
+}
+
+static inline void pack_s24le(unsigned char* p, double x){
+    if (x >  1.0) x =  1.0; if (x < -1.0) x = -1.0;
+    int32_t v = (int32_t)lround(x * 8388607.0);
+    p[0] = (unsigned char)(v & 0xFF);
+    p[1] = (unsigned char)((v >> 8) & 0xFF);
+    p[2] = (unsigned char)((v >> 16) & 0xFF);
+}
+
+#ifdef QUANTA_ALSA
+#include <alsa/asoundlib.h>
+#endif
+
+int main(int argc, char** argv){
+    long long N = -1; int sr = -1; double seconds = -1.0;
+    int fmt = 24;                       /* 24 | 32(f32) | 64(f64) */
+    int use_alsa = 0; const char* outpath = NULL;
+    for (int i = 1; i < argc; i++){
+        if      (!strcmp(argv[i], "--samples") && i+1 < argc) N = atoll(argv[++i]);
+        else if (!strcmp(argv[i], "--seconds") && i+1 < argc) seconds = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--sr")      && i+1 < argc) sr = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--f32")) fmt = 32;
+        else if (!strcmp(argv[i], "--f64")) fmt = 64;
+        else if (!strcmp(argv[i], "--alsa")) use_alsa = 1;
+        else if (!strcmp(argv[i], "-o") && i+1 < argc) outpath = argv[++i];
+        else { fprintf(stderr, "player: unknown arg '%s'\n", argv[i]); return 2; }
+    }
+
+    MetaGlue mg; mg.metaInterface = NULL; mg.declare = meta_declare;
+    metadataquanta(&mg);                /* fills g_samples / g_rate if baked */
+    if (sr < 0) sr = (g_rate > 0) ? g_rate : 48000;
+    if (N  < 0 && seconds >= 0.0) N = (long long)(seconds * (double)sr + 0.5);
+    if (N  < 0) N = g_samples;
+    if (N  < 0){ fprintf(stderr, "player: unknown length — pass --samples N or --seconds S\n"); return 2; }
+
+    quanta* d = newquanta();
+    initquanta(d, sr);
+    int nout = getNumOutputsquanta(d);
+    int ch = nout > 1 ? 2 : 1;
+
+    const int B = 512;
+    double* o0 = (double*)calloc((size_t)B, sizeof(double));
+    double* o1 = (double*)calloc((size_t)B, sizeof(double));
+    FAUSTFLOAT* outs[2] = { o0, o1 };
+    unsigned char* buf = (unsigned char*)malloc((size_t)B * 2 * 8);  /* 2 ch × 8 B (f64 max) */
+
+#ifdef QUANTA_ALSA
+    snd_pcm_t* pcm = NULL;
+    if (use_alsa){
+        if (snd_pcm_open(&pcm, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0){
+            fprintf(stderr, "player: ALSA open failed\n"); return 1; }
+        snd_pcm_format_t af = (fmt == 32) ? SND_PCM_FORMAT_FLOAT_LE : SND_PCM_FORMAT_S24_3LE;
+        snd_pcm_set_params(pcm, af, SND_PCM_ACCESS_RW_INTERLEAVED, (unsigned)ch,
+                           (unsigned)sr, 1, 200000);
+    }
+#else
+    if (use_alsa){ fprintf(stderr, "player: built without ALSA (compile -DQUANTA_ALSA -lasound)\n"); return 2; }
+#endif
+    FILE* out = NULL;
+    if (!use_alsa) out = outpath ? fopen(outpath, "wb") : stdout;
+    if (!use_alsa && !out){ fprintf(stderr, "player: cannot open output\n"); return 1; }
+
+    for (long long off = 0; off < N; off += B){
+        int cnt = (int)((N - off) < B ? (N - off) : B);
+        computequanta(d, cnt, NULL, outs);
+        size_t bi = 0;
+        for (int i = 0; i < cnt; i++)
+            for (int c = 0; c < ch; c++){
+                double x = (c == 0 ? o0 : o1)[i];
+                if      (fmt == 64){ memcpy(buf + bi, &x, 8); bi += 8; }
+                else if (fmt == 32){ float fv = (float)x; memcpy(buf + bi, &fv, 4); bi += 4; }
+                else               { pack_s24le(buf + bi, x); bi += 3; }
+            }
+#ifdef QUANTA_ALSA
+        if (use_alsa){
+            snd_pcm_sframes_t w = snd_pcm_writei(pcm, buf, (snd_pcm_uframes_t)cnt);
+            if (w < 0) snd_pcm_prepare(pcm);
+        } else
+#endif
+        fwrite(buf, 1, bi, out);
+    }
+
+#ifdef QUANTA_ALSA
+    if (use_alsa){ snd_pcm_drain(pcm); snd_pcm_close(pcm); }
+    else
+#endif
+    if (out && out != stdout) fclose(out);
+    deletequanta(d);
+    free(o0); free(o1); free(buf);
+    fprintf(stderr, "player: %lld samples, %d ch, %d Hz, %s\n",
+            N, ch, sr, fmt==64?"f64":fmt==32?"f32":"s24le");
+    return 0;
+}
