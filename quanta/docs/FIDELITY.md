@@ -78,18 +78,21 @@ vocoder must fight are absent **by construction**:
 - **Time-stretch** scales each grain's `onset` and `dur`; pitch is invariant because grain
   phase is `freq·tl/sr` (no frequency-bin re-estimation, so no transient smearing / "phasiness").
   `--keep-transients` holds `layer==1` grain length, keeping attacks razor-sharp at any factor.
-- **Pitch shift** moves partials directly; `--formant` re-weights grain amplitude by a
-  **per-frame** spectral envelope `E(t,f)` (~85 ms, shrunk toward the global envelope so sparse
-  frames stay stable), holding formant peaks in place while partials move (naive transpose drags
-  them). Gate I measures this: on the (sparse, synthetic) in-tree corpus a −12 st formant shift
-  keeps the spectral centroid closer to the original (`|log ratio|` 0.73) than a naive transpose
-  (0.84); on dense real music the per-frame envelope tracks the local formants.
+- **Pitch shift** moves partials directly; the `--formant` family re-weights grain amplitude by a
+  spectral envelope `E(f)` so formant peaks stay put while partials move (naive transpose drags
+  them). Two modes, and we **measured** rather than assumed which to default to: on a real 96 k
+  harpsichord master (+7 st), per-window (85 ms) spectral-centroid deviation from the reference was
+  **naive 0.188, global `--formant` 0.124, per-frame `--formant-dyn` 0.134** — i.e. per-frame is
+  *worse* on stationary-timbre music (its frame-to-frame variance buys nothing when the envelope
+  isn't moving), so **`--formant` (one global envelope) is the default**. `--formant-dyn` (per-frame,
+  ~85 ms, shrunk toward the global prior) is retained for material with genuinely time-varying
+  formants (voices, evolving mixes), where the locality has something to track.
 - **EQ / width / gain** are exact scalar edits on atom amplitudes and the 24 residual-band gains.
 
 Every transform still **freezes to a `.dsp` that nulls its own render ≤ −120 dBFS** (Gate I) —
-determinism survives editing. Honest limits: the formant envelope is per-frame with global
-shrinkage (tight on dense material, relaxes toward global where atoms are sparse), `pitch` can't
-transpose the fixed-band noise residual, and large stretch
+determinism survives editing. Honest limits: `--formant` (global) is the default because it
+measured tighter than per-frame on stationary-timbre music (`--formant-dyn` is for moving
+formants), `pitch` can't transpose the fixed-band noise residual, and large stretch
 has mild non-constant-energy overlap ripple. **Editing forfeits bit-transparency by
 construction**: changing the signal invalidates a stored `source − atoms` coherent residual, so
 `quanta-score` drops the coherent layer (§5.3) and the edited master is the analytic

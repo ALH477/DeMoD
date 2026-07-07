@@ -8,10 +8,13 @@
  * of a transformed score still nulls against its render (determinism preserved: the
  * transform just produces a different, still-valid .qsc).
  *
- *   pitch   in out <semitones> [--formant]  scale freq by 2^(s/12); --formant holds the
- *                                            per-frame spectral envelope (partials move,
- *                                            formant peaks stay — a phase vocoder only
- *                                            approximates this).
+ *   pitch   in out <semitones> [--formant|--formant-dyn]  scale freq by 2^(s/12);
+ *                                            --formant holds the GLOBAL spectral envelope
+ *                                            (default — best on stationary timbre, e.g. an
+ *                                            instrument); --formant-dyn uses a PER-FRAME
+ *                                            envelope for moving formants (voices, evolving
+ *                                            mixes). Partials move, formant peaks stay — a
+ *                                            phase vocoder only approximates this.
  *   stretch in out <factor> [--keep-transients]  true time-stretch: scale onset+dur
  *                                            (grains ring longer, pitch unchanged).
  *                                            --keep-transients holds layer-1 grain length
@@ -26,8 +29,9 @@
  *   gain    in out <dB>                        level: scale all atoms + residual by dB.
  *   export  in out  /  import in out           lossless editable-Lua round-trip.
  *
- * Caveats (honest): pitch does NOT transpose the fixed-band noise residual; the formant
- * envelope is global (best on sustained/tonal material); true stretch sums Gaussian
+ * Caveats (honest): pitch does NOT transpose the fixed-band noise residual; --formant is a
+ * global envelope (measured tighter than per-frame on stationary-timbre music — use
+ * --formant-dyn only where formants genuinely move); true stretch sums Gaussian
  * grains whose overlap isn't perfectly constant-energy (mild ripple at large factors,
  * still far cleaner than phase-vocoder phasiness). Editing an atom score changes the
  * signal, so it DROPS the coherent/bit-transparent layer (QSC_FLAG_CRES) down to the
@@ -184,7 +188,7 @@ int main(int argc, char **argv){
     if (argc < 4){
         fprintf(stderr,
           "usage: quanta-score <op> in out [amount] [flags]\n"
-          "  pitch   in.qsc out.qsc <semitones> [--formant]      transpose (formant-preserving)\n"
+          "  pitch   in.qsc out.qsc <semitones> [--formant|--formant-dyn]  transpose (formant-preserving)\n"
           "  stretch in.qsc out.qsc <factor> [--keep-transients] true time-stretch\n"
           "  time    in.qsc out.qsc <factor>                     legacy re-space (holds dur)\n"
           "  density in.qsc out.qsc <keep 0..1>                  keep most-salient fraction\n"
@@ -199,10 +203,11 @@ int main(int argc, char **argv){
     if (!strcmp(op,"import")) return score_import(inp, outp);
 
     /* scan argv[4..] for a (possibly negative) positional amount + flags */
-    int formant=0, keeptr=0, have_amt=0, have_lo=0, have_hi=0, have_gain=0;
+    int formant=0, dyn=0, keeptr=0, have_amt=0, have_lo=0, have_hi=0, have_gain=0;
     double amt=0, lo=0, hi=0, eqdb=0;
     for (int i=4;i<argc;i++){
         if      (!strcmp(argv[i],"--formant"))                    formant=1;
+        else if (!strcmp(argv[i],"--formant-dyn"))             { formant=1; dyn=1; }
         else if (!strcmp(argv[i],"--keep-transients"))            keeptr=1;
         else if (!strcmp(argv[i],"--lo")   && i+1<argc){ lo=atof(argv[++i]);   have_lo=1;   }
         else if (!strcmp(argv[i],"--hi")   && i+1<argc){ hi=atof(argv[++i]);   have_hi=1;   }
@@ -220,24 +225,30 @@ int main(int argc, char **argv){
         double ratio = pow(2.0, amt/12.0);
         if (formant){
             int nb=(int)(FENV_BPO*log2((q.h.sample_rate*0.5)/FENV_LO))+2; if (nb<8) nb=8;
-            int nf=(int)((double)q.h.source_len/FENV_FRAME)+1; if (nf<1) nf=1;
-            double *genv=malloc(sizeof(double)*(size_t)nb);          /* global (fallback) */
-            double *fenv=malloc(sizeof(double)*(size_t)nf*nb);       /* per-frame envelope */
+            double *genv=malloc(sizeof(double)*(size_t)nb);          /* global envelope */
             fenv_build(&q, genv, nb);
-            fenv_build_frames(&q, fenv, nf, nb, genv);
+            /* --formant (default): one global envelope — best on stationary-timbre material
+               (an instrument), objectively tighter than per-frame there. --formant-dyn: a
+               per-frame envelope for material with moving formants (voices, evolving mixes). */
+            int nf = dyn ? (int)((double)q.h.source_len/FENV_FRAME)+1 : 1; if (nf<1) nf=1;
+            double *fenv=NULL;
+            if (dyn){ fenv=malloc(sizeof(double)*(size_t)nf*nb); fenv_build_frames(&q, fenv, nf, nb, genv); }
             for (uint32_t i=0;i<q.h.atom_count;i++){
                 double f0=q.atoms[i].freq; if (f0<=0) continue;
                 double f1=f0*ratio;
-                double ctr=(double)q.atoms[i].onset + 0.5*(double)q.atoms[i].dur;
-                int fr=(int)(ctr/FENV_FRAME); if (fr<0) fr=0; if (fr>=nf) fr=nf-1;
-                const double *row=fenv+(size_t)fr*nb;
-                double g=fenv_at(row,nb,f1)/(fenv_at(row,nb,f0)+1e-12);
+                const double *e=genv;
+                if (dyn){
+                    double ctr=(double)q.atoms[i].onset + 0.5*(double)q.atoms[i].dur;
+                    int fr=(int)(ctr/FENV_FRAME); if (fr<0) fr=0; if (fr>=nf) fr=nf-1;
+                    e=fenv+(size_t)fr*nb;
+                }
+                double g=fenv_at(e,nb,f1)/(fenv_at(e,nb,f0)+1e-12);
                 q.atoms[i].freq=(float)f1;
                 q.atoms[i].amp =(float)(q.atoms[i].amp*g);
             }
             free(fenv); free(genv);
-            fprintf(stderr,"score: pitch %+.2f st (x%.4f) formant-preserving (%d frames) on %u atoms\n",
-                    amt, ratio, nf, q.h.atom_count);
+            fprintf(stderr,"score: pitch %+.2f st (x%.4f) formant-preserving (%s) on %u atoms\n",
+                    amt, ratio, dyn?"per-frame":"global", q.h.atom_count);
         } else {
             for (uint32_t i=0;i<q.h.atom_count;i++) q.atoms[i].freq=(float)(q.atoms[i].freq*ratio);
             fprintf(stderr,"score: pitch %+.2f st (x%.4f) on %u atoms\n", amt, ratio, q.h.atom_count);
