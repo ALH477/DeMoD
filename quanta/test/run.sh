@@ -189,6 +189,90 @@ bin/quanta-score import test/score.lua test/score_rt.qsc   >/dev/null 2>&1
 bin/quanta-render test/score.qsc    --g2 0 --raw test/i_ao.f64 >/dev/null 2>&1
 bin/quanta-render test/score_rt.qsc        --raw test/i_rt.f64 >/dev/null 2>&1
 python3 tools/metrics.py null test/i_ao.f64 test/i_rt.f64 250
+
+# --- B2 studio transforms: each edited score must still freeze-null vs its own render ---
+freeze_null(){  # $1=score.qsc  $2=tag ; nulls frozen .dsp vs C render (<= -120 dBFS)
+  bin/quanta-render "$1" --raw test/${2}_r.f64 >/dev/null 2>&1
+  bin/quanta-freeze "$1" -o test/${2}.dsp --verify >/dev/null 2>&1
+  faust -lang c -double -cn quanta -a arch/minimal_c.arch test/${2}.dsp -o test/gen.c >/dev/null 2>&1
+  gcc -O2 -std=c11 -Iinclude -Itest -ffp-contract=off -fno-fast-math -fwrapv \
+      -I"$FINC" test/harness.c -o test/${2}_h -lm
+  local NB; NB=$(python3 -c "import struct;print(struct.unpack('>Q',open('$1','rb').read()[12:20])[0])")
+  ./test/${2}_h "$NB" 48000 test/${2}_f.f64 /dev/null >/dev/null 2>&1
+  python3 tools/metrics.py null test/${2}_r.f64 test/${2}_f.f64
+}
+
+echo "-- stretch: true time-stretch (onset+dur) holds pitch, freezes null --"
+bin/quanta-score stretch test/score.qsc test/score_st.qsc 1.5 --keep-transients >/dev/null 2>&1
+freeze_null test/score_st.qsc st
+bin/quanta-render test/score_st.qsc --g2 0 --raw test/st_a.f64 >/dev/null 2>&1
+python3 - <<'PYEOF'
+import numpy as np, numpy.fft as ft, struct, sys
+def cen(p):
+    x=np.fromfile(p); X=np.abs(ft.rfft(x*np.hanning(len(x))))+1e-12; f=np.fft.rfftfreq(len(x),1/48000)
+    return float(np.sum(f*X)/np.sum(X))
+L =struct.unpack('>Q',open('test/score_st.qsc','rb').read()[12:20])[0]
+L0=struct.unpack('>Q',open('test/score.qsc','rb').read()[12:20])[0]
+r=cen('test/st_a.f64')/cen('test/i_a0.f64')
+print(f"  stretch len {L0}->{L} (need ~1.5x) ; pitch centroid ratio {r:.2f} (need 0.8-1.2)")
+sys.exit(0 if abs(L/L0-1.5)<0.02 and 0.8<r<1.2 else 1)
+PYEOF
+
+echo "-- pitch --formant: spectral envelope held vs naive transpose --"
+# use -12 (down an octave, no aliasing — cf. the naive-pitch check above) so the
+# comparison is clean; assert the formant version keeps the centroid CLOSER to the
+# original (|log ratio| smaller) than a naive transpose.
+bin/quanta-score pitch test/score.qsc test/score_fp.qsc -12 --formant >/dev/null 2>&1
+freeze_null test/score_fp.qsc fp
+bin/quanta-render test/score_dn.qsc --g2 0 --raw test/pn_a.f64 >/dev/null 2>&1  # score_dn = naive -12
+bin/quanta-render test/score_fp.qsc --g2 0 --raw test/fp_a.f64 >/dev/null 2>&1
+python3 - <<'PYEOF'
+import numpy as np, numpy.fft as ft, sys
+def cen(p):
+    x=np.fromfile(p); X=np.abs(ft.rfft(x*np.hanning(len(x))))+1e-12; f=np.fft.rfftfreq(len(x),1/48000)
+    return float(np.sum(f*X)/np.sum(X))
+c0=cen('test/i_a0.f64'); naive=cen('test/pn_a.f64')/c0; form=cen('test/fp_a.f64')/c0
+print(f"  -12st centroid ratio: naive {naive:.2f}, formant {form:.2f} "
+      f"(|log| {abs(np.log(naive)):.2f} vs {abs(np.log(form)):.2f}; formant must be closer to 1.0)")
+sys.exit(0 if abs(np.log(form)) < abs(np.log(naive)) else 1)
+PYEOF
+
+echo "-- eq: spectral-region gain drops in-band energy, freezes null --"
+bin/quanta-score eq test/score.qsc test/score_eq.qsc --lo 2000 --hi 6000 --gain -12 >/dev/null 2>&1
+freeze_null test/score_eq.qsc eq
+bin/quanta-render test/score_eq.qsc --g2 0 --raw test/eq_a.f64 >/dev/null 2>&1
+python3 - <<'PYEOF'
+import numpy as np, numpy.fft as ft, sys
+def spec(p):
+    x=np.fromfile(p); return np.fft.rfftfreq(len(x),1/48000), np.abs(ft.rfft(x*np.hanning(len(x))))+1e-12
+f,X0=spec('test/i_a0.f64'); _,Xe=spec('test/eq_a.f64'); b=(f>=2000)&(f<=6000)
+d=10*np.log10(np.sum(Xe[b]**2)/np.sum(X0[b]**2))
+print(f"  eq 2-6k in-band energy {d:.1f} dB (need < -6)")
+sys.exit(0 if d < -6 else 1)
+PYEOF
+
+echo "-- width: mid/side widen scales the side channel, freezes null --"
+bin/quanta-score width test/stereo.qsc test/stereo_w.qsc 1.5 >/dev/null 2>&1
+freeze_null test/stereo_w.qsc sw
+python3 - <<'PYEOF'
+import numpy as np, sys
+def side(p):
+    x=np.fromfile(p); return np.sqrt(np.mean((0.5*(x[0::2]-x[1::2]))**2))
+s0=side('test/stereo_ref.f64'); s1=side('test/sw_r.f64')
+print(f"  side RMS {s0:.4f} -> {s1:.4f} (width 1.5 => wider)")
+sys.exit(0 if s1 > s0*1.05 else 1)
+PYEOF
+
+echo "-- edit strips the coherent (bit-transparent) layer --"
+bin/quanta-analyzer test/src.wav -o test/score_c.qsc --k $K --snr 40 --coherent --cbits 12 >/dev/null 2>&1
+bin/quanta-score gain test/score_c.qsc test/score_cg.qsc -1 >/dev/null 2>&1
+python3 - <<'PYEOF'
+import struct, sys
+f0=struct.unpack('>H',open('test/score_c.qsc','rb').read()[6:8])[0]
+f1=struct.unpack('>H',open('test/score_cg.qsc','rb').read()[6:8])[0]
+print(f"  flags {f0:#06x} -> {f1:#06x} (CRES bit2 must clear on edit)")
+sys.exit(0 if (f0 & 0x4) and not (f1 & 0x4) else 1)
+PYEOF
 echo "gate I: PASS"
 echo "== [V] BITSTREAM v1 GATE: canonical QSS2 stream + decode reproduce the frozen reference vectors =="
 bin/quanta-stream test/tonal.wav -o test/canon.qss --lat-scale 1280 --active 2560 --rate 1200 --hop 512 --seed 0xDEC0DE >/dev/null 2>&1

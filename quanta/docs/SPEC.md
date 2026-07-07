@@ -168,6 +168,23 @@ Coherent-residual block (present iff flag bit 2):
 
 Decode adds it back after the per-channel DC blocker: `out = dcblock(atoms) + samples·scale`. Because the scale is the exact `peak/(2^{bits-1}−1)`, the null-vs-source floor is `~peak/2^{bits}` — e.g. a 16-bit residual nulls a −14 dB-peak residual to ≈ −114 dBFS, below a 24-bit source's own LSB. The layer is optional and orthogonal: a decoder that ignores flag bit 2 (or renders `--no-cres`) reproduces the lossy tier exactly, so one score carries both a ~250 kbps lossy program and a bit-transparent one. `--cbits` trades null depth for bitrate. The frozen Faust artifact emits `r` as an int16 `waveform{}` table read by the sample counter and added post-`dcb`, so **the static `.dsp` is itself bit-transparent** (nulls source ≈ −114 dBFS while still nulling the C player to −280 dBFS). This is a capability, not a compression win: the residual is high-entropy, so at bit-exact depth the coded size is FLAC-class.
 
+### 5.4 Score transforms (`quanta-score`, instrument/studio ops)
+
+Because the score is *data* — Gabor grains `(rank, onset, dur, freq, amp, phase, …)` over a 24-band residual envelope — it is directly editable. `quanta-score` applies **analytic** transforms (no phase vocoder, no FFT resynthesis) as pure edits of the QSC fields that both the renderer (§12) and the Faust emitter (§7) consume identically, so a transformed score is a **valid QSC that still freeze-nulls against its own render ≤ −120 dBFS** (`test/run.sh` gate I). Normative operations:
+
+| op | edit | notes |
+|----|------|-------|
+| `pitch <st> [--formant]` | `freq ·= 2^(st/12)` | `--formant`: re-weight `amp` by `E(f_new)/E(f_old)` where `E` is the **per-frame** (~85 ms) log-frequency amplitude envelope (1/6-oct, energy-weighted), shrunk toward the global envelope so sparse frames stay well-defined — partials move, formant peaks stay |
+| `stretch <f> [--keep-transients]` | `onset,dur ·= f`; `source_len,residual_hop ·= f` | true time-stretch (grains ring longer, pitch fixed because phase is `freq·tl/sr`); `--keep-transients` holds `dur` for `layer==1` grains so transients stay sharp |
+| `time <f>` | `onset ·= f`, `dur` held | legacy re-space (density shifts; **not** a stretch) |
+| `density <k>` | keep atoms with `rank < k·(rank_max+1)` | salience truncation (offline equivalent of the runtime K-gate) |
+| `eq --lo --hi --gain <dB>` | scale `amp` of atoms in `[lo,hi]` **and** residual bands whose `f_c` is in `[lo,hi]` (§4.5) | full-spectrum region gain |
+| `width <w>` | scale side-channel (`flags` bit0) atom `amp` by `w` and the side residual gains by `20·log10 w` | mid/side stereo width (`w<1` narrow, `0` mono, `>1` wide); mono score is a no-op |
+| `gain <dB>` | scale all `amp` and residual gains by `dB` | master level |
+| `export`/`import` | atoms ↔ editable Lua (lossless in f32) | residual dropped on import |
+
+Residual-gain edits are applied in the quantized domain (`0.25 dB/step`, §4.5). **Normative rule:** any transform that changes atoms, amplitudes, or `source_len` **must clear flag bit 2 and drop the coherent residual** (§5.3) — the stored `r = source − atoms` is defined only for the exact unedited atom set, so editing reverts the bit-transparent tier to the analytic (atoms + noise) tier. Honest limits: `pitch` does not transpose the fixed-band noise residual; the formant envelope is per-frame with global shrinkage (tight on dense material, relaxes toward global on sparse frames); constant-energy overlap is not guaranteed under large `stretch` (mild envelope ripple — still free of phase-vocoder phasiness by construction).
+
 ## 6. Exploration Runtime (`demod-rt` module)
 
 A new engine module, `quanta_player`, added to `demod-rt` (thereby GPLv3-or-commercial, §13).

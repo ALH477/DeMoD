@@ -48,6 +48,14 @@ bin/quanta-freeze   score.qsc -o frozen.dsp [--k N] [--verify] [--lua ui/score.l
 faust -lang c -double -cn quanta -a arch/minimal_c.arch frozen.dsp -o gen.c
 ./demod-ui ui/quanta_panel.lua        # score browser (demod-ui framework)
 
+# studio transforms — analytic edits on the score (each re-freezes null-clean; spec §5.4)
+bin/quanta-score pitch   score.qsc out.qsc +5 --formant           # formant-preserving transpose
+bin/quanta-score stretch score.qsc out.qsc 1.5 --keep-transients  # true time-stretch, sharp transients
+bin/quanta-score eq      score.qsc out.qsc --lo 2000 --hi 6000 --gain -2.5   # spectral-region gain
+bin/quanta-score width   score.qsc out.qsc 1.2                    # mid/side stereo width
+bin/quanta-score gain    score.qsc out.qsc -3                     # master level (dB)
+bin/quanta-score export  score.qsc score.lua   # edit as text, then: import score.lua out.qsc
+
 # streaming profile (Appendix S)
 bin/quanta-stream        in.wav -o out.qss [--mode live|near|relaxed] [--qsc bridge.qsc]
                          [--lat-scale N] [--active N] [--rate atoms/s] [--hop N]

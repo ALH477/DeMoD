@@ -69,6 +69,32 @@ static `.dsp` nulls the C render to −280 dBFS (determinism) **and** the source
 over FLAC (the residual is high-entropy); the win is one scalable file (lossy ↔ bit-exact)
 and the decoder-as-`.dsp`. Gate: `make coherent`.
 
+## Analytic resynthesis vs phase vocoder (`quanta-score`, spec §5.4)
+
+Because the score is an explicit sinusoidal-grain + band-residual model, studio transforms
+are *edits of the model*, not time-frequency re-estimation — so several artifacts a phase
+vocoder must fight are absent **by construction**:
+
+- **Time-stretch** scales each grain's `onset` and `dur`; pitch is invariant because grain
+  phase is `freq·tl/sr` (no frequency-bin re-estimation, so no transient smearing / "phasiness").
+  `--keep-transients` holds `layer==1` grain length, keeping attacks razor-sharp at any factor.
+- **Pitch shift** moves partials directly; `--formant` re-weights grain amplitude by a
+  **per-frame** spectral envelope `E(t,f)` (~85 ms, shrunk toward the global envelope so sparse
+  frames stay stable), holding formant peaks in place while partials move (naive transpose drags
+  them). Gate I measures this: on the (sparse, synthetic) in-tree corpus a −12 st formant shift
+  keeps the spectral centroid closer to the original (`|log ratio|` 0.73) than a naive transpose
+  (0.84); on dense real music the per-frame envelope tracks the local formants.
+- **EQ / width / gain** are exact scalar edits on atom amplitudes and the 24 residual-band gains.
+
+Every transform still **freezes to a `.dsp` that nulls its own render ≤ −120 dBFS** (Gate I) —
+determinism survives editing. Honest limits: the formant envelope is per-frame with global
+shrinkage (tight on dense material, relaxes toward global where atoms are sparse), `pitch` can't
+transpose the fixed-band noise residual, and large stretch
+has mild non-constant-energy overlap ripple. **Editing forfeits bit-transparency by
+construction**: changing the signal invalidates a stored `source − atoms` coherent residual, so
+`quanta-score` drops the coherent layer (§5.3) and the edited master is the analytic
+(atoms + noise) tier — expected, not a regression (the point of an edit is to change the sound).
+
 ## Corpus
 
 Synthetic generators: `tools/gen_tonal.py`, `tools/gen_test.py`, `tools/gen_probe.py`.
