@@ -49,7 +49,7 @@ faust -lang c -double -cn quanta -a arch/minimal_c.arch frozen.dsp -o gen.c
 ./demod-ui ui/quanta_panel.lua        # score browser (demod-ui framework)
 
 # studio transforms — analytic edits on the score (each re-freezes null-clean; spec §5.4)
-bin/quanta-score pitch   score.qsc out.qsc +5 --formant           # transpose, hold formants (global; --formant-dyn for voices)
+bin/quanta-score pitch   score.qsc out.qsc +5 --formant           # transpose, hold formants (validated on music)
 bin/quanta-score stretch score.qsc out.qsc 1.5 --keep-transients  # true time-stretch, sharp transients
 bin/quanta-score eq      score.qsc out.qsc --lo 2000 --hi 6000 --gain -2.5   # spectral-region gain
 bin/quanta-score width   score.qsc out.qsc 1.2                    # mid/side stereo width

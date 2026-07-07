@@ -78,21 +78,29 @@ vocoder must fight are absent **by construction**:
 - **Time-stretch** scales each grain's `onset` and `dur`; pitch is invariant because grain
   phase is `freq·tl/sr` (no frequency-bin re-estimation, so no transient smearing / "phasiness").
   `--keep-transients` holds `layer==1` grain length, keeping attacks razor-sharp at any factor.
-- **Pitch shift** moves partials directly; the `--formant` family re-weights grain amplitude by a
-  spectral envelope `E(f)` so formant peaks stay put while partials move (naive transpose drags
-  them). Two modes, and we **measured** rather than assumed which to default to: on a real 96 k
-  harpsichord master (+7 st), per-window (85 ms) spectral-centroid deviation from the reference was
-  **naive 0.188, global `--formant` 0.124, per-frame `--formant-dyn` 0.134** — i.e. per-frame is
-  *worse* on stationary-timbre music (its frame-to-frame variance buys nothing when the envelope
-  isn't moving), so **`--formant` (one global envelope) is the default**. `--formant-dyn` (per-frame,
-  ~85 ms, shrunk toward the global prior) is retained for material with genuinely time-varying
-  formants (voices, evolving mixes), where the locality has something to track.
+- **Pitch shift** moves partials directly; `--formant` re-weights grain amplitude by the spectral
+  envelope `E(f)` so formant peaks stay put while partials move (naive transpose drags them).
+  **Measured, not assumed** — per-window (43–85 ms) spectral-centroid deviation from the reference,
+  at +7 st (lower = formants held closer):
+
+  | material | naive | `--formant` (global) | per-frame (tried) |
+  |---|---|---|---|
+  | 96 k harpsichord master (music — the mastering target) | 0.188 | **0.124** | 0.134 |
+  | CC0 clean speech (voice) | 0.377 | 0.442 | 0.444 |
+
+  Two honest conclusions: (1) formant preservation is a clear win **on music** (0.124 vs 0.188),
+  which is the target; (2) a **per-frame** envelope was implemented and **dropped** — it gave no
+  measurable gain over the global one on *either* material (worse on music, a tie on voice), so the
+  extra surface wasn't earned. On **speech**, formant reweighting shows no centroid benefit at all
+  — expected, and moot: voices have a dedicated acoustic-unit vocoder (Appendix U), not this
+  music-atom path.
 - **EQ / width / gain** are exact scalar edits on atom amplitudes and the 24 residual-band gains.
 
 Every transform still **freezes to a `.dsp` that nulls its own render ≤ −120 dBFS** (Gate I) —
-determinism survives editing. Honest limits: `--formant` (global) is the default because it
-measured tighter than per-frame on stationary-timbre music (`--formant-dyn` is for moving
-formants), `pitch` can't transpose the fixed-band noise residual, and large stretch
+determinism survives editing. Honest limits: `--formant` (global-envelope reweight) is validated
+on music (a per-frame variant was measured and dropped; formant preservation shows no gain on
+speech — use the vocoder for voices), `pitch` can't transpose the fixed-band noise residual, and
+large stretch
 has mild non-constant-energy overlap ripple. **Editing forfeits bit-transparency by
 construction**: changing the signal invalidates a stored `source − atoms` coherent residual, so
 `quanta-score` drops the coherent layer (§5.3) and the edited master is the analytic

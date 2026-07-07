@@ -174,7 +174,7 @@ Because the score is *data* — Gabor grains `(rank, onset, dur, freq, amp, phas
 
 | op | edit | notes |
 |----|------|-------|
-| `pitch <st> [--formant\|--formant-dyn]` | `freq ·= 2^(st/12)` | re-weight `amp` by `E(f_new)/E(f_old)` (1/6-oct, energy-weighted log-freq envelope) so partials move but formant peaks stay. `--formant`: one **global** envelope — default; measured tighter on stationary-timbre material. `--formant-dyn`: **per-frame** (~85 ms, shrunk toward the global prior) for material with genuinely moving formants (voices, evolving mixes) |
+| `pitch <st> [--formant]` | `freq ·= 2^(st/12)` | `--formant`: re-weight `amp` by `E(f_new)/E(f_old)` where `E` is the global 1/6-oct energy-weighted log-freq envelope — partials move, formant peaks stay. Validated on music (a per-frame variant was tried and dropped: no measurable gain on any tested material, `docs/FIDELITY.md`) |
 | `stretch <f> [--keep-transients]` | `onset,dur ·= f`; `source_len,residual_hop ·= f` | true time-stretch (grains ring longer, pitch fixed because phase is `freq·tl/sr`); `--keep-transients` holds `dur` for `layer==1` grains so transients stay sharp |
 | `time <f>` | `onset ·= f`, `dur` held | legacy re-space (density shifts; **not** a stretch) |
 | `density <k>` | keep atoms with `rank < k·(rank_max+1)` | salience truncation (offline equivalent of the runtime K-gate) |
@@ -183,7 +183,7 @@ Because the score is *data* — Gabor grains `(rank, onset, dur, freq, amp, phas
 | `gain <dB>` | scale all `amp` and residual gains by `dB` | master level |
 | `export`/`import` | atoms ↔ editable Lua (lossless in f32) | residual dropped on import |
 
-Residual-gain edits are applied in the quantized domain (`0.25 dB/step`, §4.5). **Normative rule:** any transform that changes atoms, amplitudes, or `source_len` **must clear flag bit 2 and drop the coherent residual** (§5.3) — the stored `r = source − atoms` is defined only for the exact unedited atom set, so editing reverts the bit-transparent tier to the analytic (atoms + noise) tier. Honest limits: `pitch` does not transpose the fixed-band noise residual; `--formant` (global) measured objectively tighter than `--formant-dyn` (per-frame) on stationary-timbre music, so it is the default — per-frame only helps where formants genuinely move; constant-energy overlap is not guaranteed under large `stretch` (mild envelope ripple — still free of phase-vocoder phasiness by construction).
+Residual-gain edits are applied in the quantized domain (`0.25 dB/step`, §4.5). **Normative rule:** any transform that changes atoms, amplitudes, or `source_len` **must clear flag bit 2 and drop the coherent residual** (§5.3) — the stored `r = source − atoms` is defined only for the exact unedited atom set, so editing reverts the bit-transparent tier to the analytic (atoms + noise) tier. Honest limits: `pitch` does not transpose the fixed-band noise residual; `--formant` is validated on music (a per-frame envelope was measured and dropped — no gain, on music *or* voice — and formant reweighting shows no centroid benefit on speech, which has its own vocoder path); constant-energy overlap is not guaranteed under large `stretch` (mild envelope ripple — still free of phase-vocoder phasiness by construction).
 
 ## 6. Exploration Runtime (`demod-rt` module)
 

@@ -236,9 +236,6 @@ print(f"  -12st centroid ratio: naive {naive:.2f}, formant {form:.2f} "
       f"(|log| {abs(np.log(naive)):.2f} vs {abs(np.log(form)):.2f}; formant must be closer to 1.0)")
 sys.exit(0 if abs(np.log(form)) < abs(np.log(naive)) else 1)
 PYEOF
-# per-frame variant (--formant-dyn) must also freeze null-clean
-bin/quanta-score pitch test/score.qsc test/score_fpd.qsc -12 --formant-dyn >/dev/null 2>&1
-freeze_null test/score_fpd.qsc fpd
 
 echo "-- eq: spectral-region gain drops in-band energy, freezes null --"
 bin/quanta-score eq test/score.qsc test/score_eq.qsc --lo 2000 --hi 6000 --gain -12 >/dev/null 2>&1
