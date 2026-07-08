@@ -40,6 +40,7 @@ extern "C" {
 // Shared memory names
 #define SNAKE_IPC_TX_SHM_NAME "/demod-snake-tx"
 #define SNAKE_IPC_SRC_SHM_PREFIX "/demod-snake-src-"
+#define SNAKE_IPC_SRC_SHM_NAME_FMT "/demod-snake-src-%d"
 #define SNAKE_IPC_CUE_SHM_PREFIX "/demod-snake-cue-"
 
 // SPSC ring buffer for float32 audio (lock-free, wait-free)

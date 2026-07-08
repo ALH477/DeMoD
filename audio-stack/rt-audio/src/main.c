@@ -533,6 +533,8 @@ static const char *parse_faust_slot_spec(const char *spec,
 
 int main(int argc, char *argv[]) {
     int rt_core = 4;  /* Default: physical core 2, logical thread 4 (HT enabled) */
+    int hub_mode = 0;
+    int hub_sources = 0;
     const char *faust_libs[DEMOD_RT_MAX_FX_SLOTS];
     DemodSlotKind faust_kinds[DEMOD_RT_MAX_FX_SLOTS];
     int faust_has_kind[DEMOD_RT_MAX_FX_SLOTS];
@@ -545,6 +547,13 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--core") == 0 && i + 1 < argc) {
             rt_core = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--hub") == 0 && i + 1 < argc) {
+            hub_mode = 1;
+            hub_sources = atoi(argv[++i]);
+            if (hub_sources < 1 || (unsigned)hub_sources > SNAKE_IPC_MAX_SRC) {
+                fprintf(stderr, "[demod-rt] hub mode: sources must be 1-%u\n", SNAKE_IPC_MAX_SRC);
+                return 1;
+            }
         } else if (strcmp(argv[i], "--faust-slot") == 0 && i + 2 < argc) {
             int slot = atoi(argv[++i]);
             if (slot >= 0 && slot < DEMOD_RT_MAX_FX_SLOTS) {
@@ -589,6 +598,45 @@ int main(int argc, char *argv[]) {
     if (rc < 0) {
         fprintf(stderr, "[demod-rt] engine init failed: %d\n", rc);
         return 1;
+    }
+
+    /* Hub mode: open shared memory rings from snake_mixer */
+    if (hub_mode) {
+        eng.snake_rx_count = hub_sources;
+        for (int i = 0; i < hub_sources; i++) {
+            char shm_name[64];
+            snprintf(shm_name, sizeof(shm_name), SNAKE_IPC_SRC_SHM_NAME_FMT, i);
+            
+            rc = demod_shm_open(&eng.snake_rx_regions[i], shm_name,
+                                snake_spsc_alloc_size(SNAKE_IPC_RING_CAP));
+            if (rc < 0) {
+                fprintf(stderr, "[demod-rt] hub mode: failed to open ring %s\n", shm_name);
+                /* Clean up already opened rings */
+                for (int j = 0; j < i; j++) {
+                    demod_shm_close(&eng.snake_rx_regions[j]);
+                }
+                demod_rt_engine_shutdown(&eng);
+                return 1;
+            }
+            eng.snake_rx_rings[i] = (SnakeSpsc *)eng.snake_rx_regions[i].addr;
+            
+            /* Create JACK output port for this source */
+            char port_name[64];
+            snprintf(port_name, sizeof(port_name), "snake_src_%d", i);
+            eng.snake_rx_ports[i] = jack_port_register(
+                eng.jack_client, port_name, JACK_DEFAULT_AUDIO_TYPE,
+                JackPortIsOutput, 0);
+            if (!eng.snake_rx_ports[i]) {
+                fprintf(stderr, "[demod-rt] hub mode: failed to register port %s\n", port_name);
+                for (int j = 0; j <= i; j++) {
+                    demod_shm_close(&eng.snake_rx_regions[j]);
+                }
+                demod_rt_engine_shutdown(&eng);
+                return 1;
+            }
+        }
+        fprintf(stderr, "[demod-rt] hub mode: opened %d source rings, created %d JACK ports\n",
+                hub_sources, hub_sources);
     }
 
     /* Load Faust plugins into FX slots */

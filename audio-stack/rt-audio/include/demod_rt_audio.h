@@ -245,6 +245,12 @@ struct DemodRtEngine {
     DemodShmRegion  snake_tx_region;
     SnakeSpsc      *snake_tx_ring;
 
+    /* Snake RX rings (hub mode: snake_mixer → demod-rt → JACK outputs) */
+    DemodShmRegion  snake_rx_regions[SNAKE_IPC_MAX_SRC];
+    SnakeSpsc      *snake_rx_rings[SNAKE_IPC_MAX_SRC];
+    jack_port_t    *snake_rx_ports[SNAKE_IPC_MAX_SRC];
+    int             snake_rx_count;
+
     /* Local snapshot (copied from triple buffer each callback) */
     DemodParamSnapshot params_local;
     uint64_t           params_seq;
@@ -493,6 +499,19 @@ static int demod_rt_process(jack_nframes_t nframes, void *arg) {
 
     /* Timestamp for CPU load and heartbeat */
     clock_gettime(CLOCK_MONOTONIC_RAW, &eng->callback_start);
+
+    /* Hub mode: bridge snake_mixer rings to JACK output ports */
+    if (eng->snake_rx_count > 0) {
+        for (int i = 0; i < eng->snake_rx_count; i++) {
+            float *out = (float *)jack_port_get_buffer(eng->snake_rx_ports[i], nframes);
+            uint64_t got = snake_spsc_pop(eng->snake_rx_rings[i], out, nframes);
+            /* Zero-fill underrun */
+            if (got < nframes) {
+                memset(out + got, 0, (nframes - got) * sizeof(float));
+            }
+        }
+        return 0;
+    }
 
     /* Process commands from orchestrator (~50ns per command) */
     demod_rt_process_commands(eng);
@@ -903,6 +922,10 @@ static inline void demod_rt_engine_shutdown(DemodRtEngine *eng) {
     demod_shm_close(&eng->ipc.evt_region);
     demod_shm_close(&eng->ipc.hb_region);
     demod_shm_close(&eng->snake_tx_region);
+    /* Hub mode: close all RX rings */
+    for (int i = 0; i < eng->snake_rx_count; i++) {
+        demod_shm_close(&eng->snake_rx_regions[i]);
+    }
 }
 
 #ifdef __cplusplus
