@@ -850,8 +850,8 @@ static inline int demod_rt_engine_init(DemodRtEngine *eng, int rt_core) {
         if (!eng->snake_tx_ring) {
             demod_shm_close(&eng->snake_tx_region);
         } else {
-            fprintf(stderr, "[demod-rt] snake TX ring created: %s (%zu samples)\n",
-                    SNAKE_IPC_TX_SHM_NAME, SNAKE_IPC_RING_CAP);
+            fprintf(stderr, "[demod-rt] snake TX ring created: %s (%u samples)\n",
+                    SNAKE_IPC_TX_SHM_NAME, (unsigned)SNAKE_IPC_RING_CAP);
         }
     } else {
         fprintf(stderr, "[demod-rt] snake TX ring unavailable (standalone mode)\n");
