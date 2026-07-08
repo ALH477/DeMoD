@@ -1,6 +1,6 @@
 // Test for snake_ipc.h SPSC ring buffer
 // Compile: gcc -std=c11 -I../include -I. -pthread test_snake_ipc.c -o test_snake_ipc
-#include "snake_ipc.h"
+#include "../include/snake_ipc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>

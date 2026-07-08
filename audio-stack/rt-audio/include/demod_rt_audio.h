@@ -35,6 +35,7 @@
 #include "demod_commands.h"
 #include "demod_faust_glue.h"
 #include "demod_rt_meters.h"
+#include "snake_ipc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -239,6 +240,10 @@ struct DemodRtEngine {
     /* Live readback shm (demod-rt is the sole writer; the UI maps it read-only) */
     DemodShmRegion  meters_region;
     DemodRtMeters  *meters;
+
+    /* Snake TX ring (spoke mode: demod-rt → quanta encoder → network) */
+    DemodShmRegion  snake_tx_region;
+    SnakeSpsc      *snake_tx_ring;
 
     /* Local snapshot (copied from triple buffer each callback) */
     DemodParamSnapshot params_local;
@@ -692,6 +697,18 @@ static int demod_rt_process(jack_nframes_t nframes, void *arg) {
         out_r[i] = demod_dc_block(&eng->dc_r, r);
     }
 
+    /* Snake TX ring: push processed stereo output (summed to mono) for network transmission.
+     * This is the spoke's contribution to the cluster. The ring feeds the quanta encoder
+     * which compresses and sends via raw-L2 to the hub. Non-blocking: if ring is full,
+     * samples are dropped (acceptable — network layer handles gaps via PLC). */
+    if (eng->snake_tx_ring && nframes <= DEMOD_RT_MAX_JACK_FRAMES) {
+        float snake_mono[DEMOD_RT_MAX_JACK_FRAMES];
+        for (jack_nframes_t i = 0; i < nframes; i++) {
+            snake_mono[i] = (out_l[i] + out_r[i]) * 0.5f;
+        }
+        snake_spsc_push(eng->snake_tx_ring, snake_mono, nframes);
+    }
+
     /* Publish live readback (seqlock: odd = writing, even = stable). RT-safe — plain
      * stores between release fences; the UI maps read-only and retries on odd/changed
      * seq. Per-slot post-fader levels + authoritative mixer state + post-master scope. */
@@ -823,6 +840,23 @@ static inline int demod_rt_engine_init(DemodRtEngine *eng, int rt_core) {
         fprintf(stderr, "[demod-rt] meters shm unavailable (UI meters disabled)\n");
     }
 
+    /* Snake TX ring (spoke mode: demod-rt → quanta encoder → network).
+     * Create the shared memory region for the quanta encoder to read from.
+     * Non-fatal if it can't be created (standalone mode without snake network). */
+    eng->snake_tx_ring = NULL;
+    size_t snake_tx_size = snake_spsc_alloc_size(SNAKE_IPC_RING_CAP);
+    if (demod_shm_create(&eng->snake_tx_region, SNAKE_IPC_TX_SHM_NAME, snake_tx_size) == 0) {
+        eng->snake_tx_ring = snake_spsc_init(eng->snake_tx_region.addr, SNAKE_IPC_RING_CAP);
+        if (!eng->snake_tx_ring) {
+            demod_shm_close(&eng->snake_tx_region);
+        } else {
+            fprintf(stderr, "[demod-rt] snake TX ring created: %s (%zu samples)\n",
+                    SNAKE_IPC_TX_SHM_NAME, SNAKE_IPC_RING_CAP);
+        }
+    } else {
+        fprintf(stderr, "[demod-rt] snake TX ring unavailable (standalone mode)\n");
+    }
+
     /* Connect to JACK */
     jack_status_t status;
     eng->jack_client = jack_client_open("demod-rt", JackNoStartServer, &status);
@@ -868,6 +902,7 @@ static inline void demod_rt_engine_shutdown(DemodRtEngine *eng) {
     demod_shm_close(&eng->ipc.cmd_region);
     demod_shm_close(&eng->ipc.evt_region);
     demod_shm_close(&eng->ipc.hb_region);
+    demod_shm_close(&eng->snake_tx_region);
 }
 
 #ifdef __cplusplus
