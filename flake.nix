@@ -377,5 +377,40 @@
           '';
         };
       }
-    );
+    ) // {
+      # ── NixOS modules (system-independent) ──────────────────────────
+      nixosModules = {
+        snake-spoke = import ./nixos/modules/snake-spoke.nix;
+        snake-hub = import ./nixos/modules/snake-hub.nix;
+      };
+
+      # ── Example NixOS configurations ────────────────────────────────
+      nixosConfigurations = {
+        # Example spoke node (RISC-V)
+        spoke1 = nixpkgs.lib.nixosSystem {
+          system = "riscv64-linux";
+          modules = [
+            self.nixosModules.snake-spoke
+            {
+              services.snake-spoke.enable = true;
+              services.snake-spoke.interface = "eth0";
+              services.snake-spoke.hubAddress = "192.168.1.1";
+            }
+          ];
+        };
+
+        # Example hub node (x86_64)
+        hub = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            self.nixosModules.snake-hub
+            {
+              services.snake-hub.enable = true;
+              services.snake-hub.interface = "eth0";
+              services.snake-hub.numSpokes = 4;
+            }
+          ];
+        };
+      };
+    };
 }
