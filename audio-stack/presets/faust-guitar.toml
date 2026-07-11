@@ -1,0 +1,23 @@
+[meta]
+name = "Guitar (Faust DSP)"
+description = "Guitar → Komplete Audio 2 → demod-rt (Faust amp sim) → REAPER"
+tags = ["guitar", "faust", "amp-sim", "dsp"]
+
+[pipewire]
+quantum = 128
+rate = 48000
+
+[interfaces]
+default_source = "alsa_input.usb-Native_Instruments_Komplete_Audio_2_0000A748-00.analog-stereo"
+default_sink = "alsa_output.usb-Native_Instruments_Komplete_Audio_2_0000A748-00.analog-stereo"
+
+[jack_routing]
+"Komplete Audio 2:capture_FL" = ["demod-rt:input_L"]
+"Komplete Audio 2:capture_FR" = ["demod-rt:input_R"]
+"demod-rt:output_L" = ["REAPER:in_1"]
+"demod-rt:output_R" = ["REAPER:in_2"]
+"REAPER:out_1" = ["Komplete Audio 2:playback_FL"]
+"REAPER:out_2" = ["Komplete Audio 2:playback_FR"]
+
+[faust_dsp]
+0 = "/var/lib/demod/faust/guitar_amp_sim.so"

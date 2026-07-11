@@ -1,0 +1,21 @@
+[meta]
+name = "Reamp"
+description = "REAPER playback → Komplete Audio 2 → guitar amp → mic → Yamaha mixer → REAPER"
+tags = ["reamp", "guitar", "amp"]
+
+[pipewire]
+quantum = 256
+rate = 48000
+
+[interfaces]
+default_source = "alsa_input.usb-Yamaha_Corporation_MG-XU-00.analog-stereo"
+default_sink = "alsa_output.usb-Native_Instruments_Komplete_Audio_2_0000A748-00.analog-stereo"
+
+[jack_routing]
+"REAPER:out_1" = ["Komplete Audio 2:playback_FL"]
+"REAPER:out_2" = ["Komplete Audio 2:playback_FR"]
+"MG-XU:capture_FL" = ["REAPER:in_1"]
+"MG-XU:capture_FR" = ["REAPER:in_2"]
+
+[faust_dsp]
+# No Faust processing — reamping is done in the analog domain

@@ -1,0 +1,22 @@
+[meta]
+name = "Bass Amp (Mic'd)"
+description = "Shure mic on bass amp cabinet → Yamaha mixer → REAPER"
+tags = ["bass", "amp", "mic", "shure"]
+
+[pipewire]
+quantum = 256
+rate = 48000
+
+[interfaces]
+default_source = "alsa_input.usb-Yamaha_Corporation_MG-XU-00.analog-stereo"
+default_sink = "alsa_output.usb-Native_Instruments_Komplete_Audio_2_0000A748-00.analog-stereo"
+
+[jack_routing]
+"MG-XU:capture_FL" = ["REAPER:in_1"]
+"MG-XU:capture_FR" = ["REAPER:in_2"]
+"REAPER:out_1" = ["Komplete Audio 2:playback_FL"]
+"REAPER:out_2" = ["Komplete Audio 2:playback_FR"]
+
+[faust_dsp]
+# Optional: bass EQ or compression
+# 0 = "/var/lib/demod/faust/bass_comp.so"

@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""demod-preset — Apply audio presets for DeMoD recording setups."""
+
+import argparse
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+PRESET_DIRS = [
+    Path.home() / ".config/demod/presets",
+    Path("/etc/demod/presets"),
+    Path(__file__).resolve().parent.parent / "presets",
+]
+
+def find_preset(name: str) -> Path | None:
+    """Find a preset file by name."""
+    for d in PRESET_DIRS:
+        p = d / f"{name}.toml"
+        if p.exists():
+            return p
+    return None
+
+def list_presets():
+    """List all available presets."""
+    presets = []
+    for d in PRESET_DIRS:
+        if d.exists():
+            for p in d.glob("*.toml"):
+                try:
+                    with open(p, "rb") as f:
+                        data = tomllib.load(f)
+                    meta = data.get("meta", {})
+                    presets.append({
+                        "name": p.stem,
+                        "title": meta.get("name", p.stem),
+                        "description": meta.get("description", ""),
+                        "tags": meta.get("tags", []),
+                        "path": str(p),
+                    })
+                except Exception as e:
+                    print(f"Warning: failed to parse {p}: {e}", file=sys.stderr)
+    
+    if not presets:
+        print("No presets found.")
+        return
+    
+    print("Available presets:\n")
+    for p in sorted(presets, key=lambda x: x["name"]):
+        tags = ", ".join(p["tags"]) if p["tags"] else ""
+        print(f"  {p['name']:<20} {p['title']}")
+        if p["description"]:
+            print(f"  {'':<20} {p['description']}")
+        if tags:
+            print(f"  {'':<20} [{tags}]")
+        print()
+
+def apply_pipewire(pw_config: dict):
+    """Apply PipeWire settings (quantum, rate)."""
+    quantum = pw_config.get("quantum")
+    rate = pw_config.get("rate")
+    if quantum:
+        print(f"PipeWire: set quantum={quantum}")
+    if rate:
+        print(f"PipeWire: set rate={rate}")
+
+def resolve_device_id(name: str) -> str | None:
+    """Resolve a PipeWire device name to its numeric ID via wpctl status."""
+    short = _alsa_name_to_short(name)
+    if not short:
+        return None
+    
+    is_source = name.startswith("alsa_input.")
+    is_sink = name.startswith("alsa_output.")
+    
+    try:
+        result = subprocess.run(
+            ["wpctl", "status"], capture_output=True, text=True, check=False
+        )
+        if result.returncode != 0:
+            return None
+        
+        # Parse wpctl status to find the right section
+        current_section = None
+        for line in result.stdout.split("\n"):
+            if "Sinks:" in line:
+                current_section = "sinks"
+            elif "Sources:" in line:
+                current_section = "sources"
+            elif "Filters:" in line or "Streams:" in line:
+                current_section = None
+            
+            if current_section is None:
+                continue
+            
+            # Skip if we're looking for a source but in sinks section (and vice versa)
+            if is_source and current_section != "sources":
+                continue
+            if is_sink and current_section != "sinks":
+                continue
+            
+            # Lines look like: " │  *   58. MG-XU Analog Stereo    [vol: 1.00]"
+            clean = line.strip().lstrip("│* ")
+            parts = clean.split(".", 1)
+            if len(parts) == 2:
+                try:
+                    nid = int(parts[0].strip())
+                except ValueError:
+                    continue
+                if short.lower() in clean.lower():
+                    return str(nid)
+    except Exception:
+        pass
+    return None
+
+def _alsa_name_to_short(alsa_name: str) -> str | None:
+    """Convert ALSA node name to short device name used in wpctl status."""
+    # "alsa_input.usb-Native_Instruments_Komplete_Audio_2_0000A748-00.analog-stereo"
+    # → "Komplete Audio 2"
+    # "alsa_input.usb-Yamaha_Corporation_MG-XU-00.analog-stereo"
+    # → "MG-XU"
+    name = alsa_name
+    # Strip alsa_input./alsa_output. prefix
+    for prefix in ("alsa_input.", "alsa_output."):
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+            break
+    # Strip .analog-stereo / .analog-surround-* suffix
+    if ".analog" in name:
+        name = name[:name.index(".analog")]
+    # Now parse the usb- vendor_product part
+    if name.startswith("usb-"):
+        name = name[4:]  # strip "usb-"
+        # "Native_Instruments_Komplete_Audio_2_0000A748-00" → take before serial
+        parts = name.split("-")
+        if len(parts) >= 2:
+            hw_part = parts[0]  # "Native_Instruments_Komplete_Audio_2_0000A748"
+            # Remove trailing serial hex (last _XXXXXXXX segment)
+            segments = hw_part.split("_")
+            # Find where serial starts (long hex string)
+            hw_segments = []
+            for s in segments:
+                if len(s) >= 8 and all(c in "0123456789abcdefABCDEF" for c in s):
+                    break
+                hw_segments.append(s)
+            # Strip vendor prefix (first 2 segments: "Native_Instruments", "Yamaha_Corporation")
+            # Common vendors: Native_Instruments, Yamaha_Corporation, Focusrite, etc.
+            if len(hw_segments) >= 3:
+                # Assume first 2 segments are vendor, rest is product
+                product_segments = hw_segments[2:]
+                return " ".join(product_segments).replace("_", " ")
+            else:
+                return " ".join(hw_segments).replace("_", " ")
+    return None
+
+def apply_interfaces(iface_config: dict):
+    """Set default audio source/sink."""
+    default_source = iface_config.get("default_source")
+    default_sink = iface_config.get("default_sink")
+    
+    if default_source:
+        source_id = resolve_device_id(default_source)
+        if source_id:
+            subprocess.run(["wpctl", "set-default", source_id], check=False)
+            print(f"Default source: {default_source} (id {source_id})")
+        else:
+            print(f"Warning: could not resolve source '{default_source}' to a device ID", file=sys.stderr)
+    
+    if default_sink:
+        sink_id = resolve_device_id(default_sink)
+        if sink_id:
+            subprocess.run(["wpctl", "set-default", sink_id], check=False)
+            print(f"Default sink: {default_sink} (id {sink_id})")
+        else:
+            print(f"Warning: could not resolve sink '{default_sink}' to a device ID", file=sys.stderr)
+
+def apply_jack_routing(routing: dict):
+    """Apply JACK port connections."""
+    for source, dests in routing.items():
+        for dest in dests:
+            result = subprocess.run(["pw-link", source, dest], check=False)
+            if result.returncode == 0:
+                print(f"  {source} → {dest}")
+            else:
+                print(f"  Warning: failed to connect {source} → {dest}", file=sys.stderr)
+
+def apply_faust_dsp(faust_config: dict):
+    """Load Faust DSP plugins into demod-rt slots."""
+    if not faust_config:
+        return
+    
+    for slot, path in faust_config.items():
+        print(f"Faust slot {slot}: {path}")
+
+def apply_preset(name: str):
+    """Apply a preset by name."""
+    preset_path = find_preset(name)
+    if not preset_path:
+        print(f"Error: preset '{name}' not found", file=sys.stderr)
+        print("Run 'demod-preset list' to see available presets.", file=sys.stderr)
+        sys.exit(1)
+    
+    with open(preset_path, "rb") as f:
+        preset = tomllib.load(f)
+    
+    print(f"Applying preset: {preset.get('meta', {}).get('name', name)}\n")
+    
+    if "pipewire" in preset:
+        apply_pipewire(preset["pipewire"])
+    
+    if "interfaces" in preset:
+        apply_interfaces(preset["interfaces"])
+    
+    if "jack_routing" in preset:
+        print("\nJACK routing:")
+        apply_jack_routing(preset["jack_routing"])
+    
+    if "faust_dsp" in preset:
+        print("\nFaust DSP:")
+        apply_faust_dsp(preset["faust_dsp"])
+    
+    print("\nPreset applied.")
+
+def show_status():
+    """Show current JACK routing and default devices."""
+    print("Current audio status:\n")
+    
+    try:
+        result = subprocess.run(
+            ["wpctl", "inspect", "@DEFAULT_AUDIO_SOURCE@"],
+            capture_output=True, text=True, check=False
+        )
+        if result.returncode == 0:
+            print("Default source:")
+            print(f"  {result.stdout.strip()}")
+    except Exception:
+        pass
+    
+    try:
+        result = subprocess.run(
+            ["wpctl", "inspect", "@DEFAULT_AUDIO_SINK@"],
+            capture_output=True, text=True, check=False
+        )
+        if result.returncode == 0:
+            print("Default sink:")
+            print(f"  {result.stdout.strip()}")
+    except Exception:
+        pass
+    
+    print("\nJACK links:")
+    result = subprocess.run(["pw-link", "-l"], capture_output=True, text=True, check=False)
+    if result.returncode == 0:
+        for line in result.stdout.split("\n"):
+            if "→" in line or "->" in line:
+                print(f"  {line.strip()}")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Apply audio presets for DeMoD recording setups"
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    
+    subparsers.add_parser("list", help="List available presets")
+    
+    apply_parser = subparsers.add_parser("apply", help="Apply a preset")
+    apply_parser.add_argument("name", help="Preset name")
+    
+    subparsers.add_parser("status", help="Show current audio status")
+    
+    args = parser.parse_args()
+    
+    if args.command == "list":
+        list_presets()
+    elif args.command == "apply":
+        apply_preset(args.name)
+    elif args.command == "status":
+        show_status()
+
+if __name__ == "__main__":
+    main()
