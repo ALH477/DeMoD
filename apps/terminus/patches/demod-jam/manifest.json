@@ -1,0 +1,11 @@
+{
+  "id": "demod-jam",
+  "name": "DeMoD Jam",
+  "type": "app",
+  "version": "0.1.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Collaborative audio jam over the certified DCF-Audio wire (17-byte DeModFrame; PCM-diag / Opus / Faust-PM codecs). Latency-first (SuperPack) or quality-first (Reed-Solomon FEC) delivery with profile-invariant ts24 sync. Self-certifying pure-Lua framing.",
+  "category": "Collaboration",
+  "size": "64 KB"
+}

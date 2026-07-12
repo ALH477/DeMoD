@@ -1,0 +1,11 @@
+{
+  "id": "demod-rhythm",
+  "name": "RHYTHM",
+  "type": "app",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Rhythm runner: move the lane cursor, strike on the beat, notes play through the synth.",
+  "category": "Games",
+  "size": "40 KB"
+}

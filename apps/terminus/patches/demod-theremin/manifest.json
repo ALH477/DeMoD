@@ -1,0 +1,11 @@
+{
+  "id": "demod-theremin",
+  "name": "DeMoD Theremin",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Theremin: portamento sine with vibrato and a smooth volume swell",
+  "category": "Synth",
+  "size": "1 KB"
+}

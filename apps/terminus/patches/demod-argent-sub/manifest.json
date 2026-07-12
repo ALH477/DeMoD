@@ -1,0 +1,11 @@
+{
+  "id": "demod-argent-sub",
+  "name": "Argent Sub",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Deep sub bass with metallic overtones",
+  "category": "Bass",
+  "size": "52 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-modal",
+  "name": "Modal Perc",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Modal mallet percussion (marimba/vibraphone) with strike position and rotating-fan tremolo",
+  "category": "Percussion",
+  "size": "8 KB"
+}

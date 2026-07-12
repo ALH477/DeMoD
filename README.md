@@ -268,6 +268,7 @@ See [`mcp/README.md`](mcp/README.md) for the tool list.
 
 This repo is the framework + audio core. It's the foundation for a wider open stack:
 
+- **TERMINUS** (`apps/terminus/`) — the flagship application layer: a unified home shell + DSP Studio with a full control surface, modulation matrix, and DAW-style mixer/sequencer. PolyForm Shield (source-available, non-commercial). Commercial use requires a paid license + 3% hardware fee. Contact alh477@proton.me.
 - **[ArchibaldOS](https://github.com/ALH477/ArchibaldOS)** — a real-time-audio NixOS distribution
   that this runs on. Ships for **x86_64**, **aarch64**, and — unusually — **RISC-V**: a mainline
   PREEMPT_RT image for the StarFive JH7110 (VisionFive 2 / DeepComputing Framework 13 RV). If you

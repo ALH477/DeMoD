@@ -1,0 +1,11 @@
+{
+  "id": "demod-limiter",
+  "name": "DeMoD Limiter",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Fast peak limiter with soft knee",
+  "category": "Dynamics",
+  "size": "8 KB"
+}

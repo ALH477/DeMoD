@@ -1,0 +1,11 @@
+{
+  "id": "demod-sampler",
+  "name": "SAMPLER",
+  "type": "app",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "16-pad sample player backed by a StreamDB sample library: import/record/tag samples, assign to pads, play by encoder, MIDI or touch.",
+  "category": "Music",
+  "size": "40 KB"
+}

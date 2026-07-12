@@ -1,0 +1,11 @@
+{
+  "id": "demod-drum-machine",
+  "name": "DRUM MACHINE",
+  "type": "app",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "A per-voice step sequencer: 8 drum voices x 16 steps with an animated playhead, velocity, A-D banks and STEP/LIVE input. Drives a real demod-drums kit when loaded.",
+  "category": "Music",
+  "size": "32 KB"
+}

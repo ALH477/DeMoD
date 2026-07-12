@@ -1,0 +1,11 @@
+{
+  "id": "demod-snake",
+  "name": "SNAKE",
+  "type": "app",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Classic grid snake with relative steering and a fixed-timestep clock.",
+  "category": "Games",
+  "size": "20 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-gate",
+  "name": "DeMoD Gate",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Dynamic noise gate with ducking",
+  "category": "Dynamics",
+  "size": "7 KB"
+}

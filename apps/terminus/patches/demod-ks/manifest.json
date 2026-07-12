@@ -1,0 +1,11 @@
+{
+  "id": "demod-ks",
+  "name": "KS String",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Karplus-Strong plucked string with pick position, body resonance and bass mode",
+  "category": "String",
+  "size": "8 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-reverse-warp-delay",
+  "name": "Reverse Warp Delay",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Reverse delay with pitch warping",
+  "category": "Delay",
+  "size": "5 KB"
+}

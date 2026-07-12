@@ -1,0 +1,11 @@
+{
+  "id": "demod-dodge",
+  "name": "DODGE",
+  "type": "app",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Lane reflex game: slide your ship between lanes and dodge the falling blocks.",
+  "category": "Games",
+  "size": "20 KB"
+}

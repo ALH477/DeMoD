@@ -1,0 +1,11 @@
+{
+  "id": "demod-amphead",
+  "name": "Amp Head",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Virtual analog tube amp head — Bassman topology with ZDF preamp, interactive tone stack, sag, presence and depth",
+  "category": "Amp",
+  "size": "TBD"
+}

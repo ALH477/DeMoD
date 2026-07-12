@@ -1,0 +1,11 @@
+{
+  "id": "demod-swell",
+  "name": "DeMoD Swell",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Auto volume-swell / slow-gear: each note fades in over the attack time",
+  "category": "Dynamics",
+  "size": "1 KB"
+}

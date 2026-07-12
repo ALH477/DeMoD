@@ -1,0 +1,11 @@
+{
+  "id": "demod-drone",
+  "name": "DeMoD Drone",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Tunable practice drone: detuned root with optional fifth and octave",
+  "category": "Utility",
+  "size": "1 KB"
+}

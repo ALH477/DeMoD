@@ -1,0 +1,11 @@
+{
+  "id": "demod-boost",
+  "name": "DeMoD Boost",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Clean boost + treble booster: gain, high shelf and a Rangemaster-style low-cut with gentle germanium edge",
+  "category": "Drive",
+  "size": "1 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-metronome",
+  "name": "DeMoD Metronome",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Practice metronome: BPM click with an accented downbeat every N beats",
+  "category": "Utility",
+  "size": "1 KB"
+}

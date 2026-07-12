@@ -1,0 +1,11 @@
+{
+  "id": "demod-glissande",
+  "name": "GlissAnde",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Glissando-based experimental synth",
+  "category": "Synth",
+  "size": "49 KB"
+}

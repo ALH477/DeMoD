@@ -1,0 +1,11 @@
+{
+  "id": "demod-learn",
+  "name": "LEARN",
+  "type": "app",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Learn music from zero: notes & tuner, rhythm, scales & intervals, ear training.",
+  "category": "Learn",
+  "size": "48 KB"
+}

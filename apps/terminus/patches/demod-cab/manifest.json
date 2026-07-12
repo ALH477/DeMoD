@@ -1,0 +1,11 @@
+{
+  "id": "demod-cab",
+  "name": "DeMoD Cab",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Speaker-cabinet voicing (4x12 / 2x12 / 1x12 / combo)",
+  "category": "Cab",
+  "size": "6 KB"
+}

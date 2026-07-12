@@ -1,0 +1,11 @@
+{
+  "id": "demod-genreeq",
+  "name": "GenreEQ",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Style-specific equalisation curves",
+  "category": "EQ",
+  "size": "14 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-fuzz",
+  "name": "DeMoD Fuzz",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Aggressive fuzz distortion",
+  "category": "Distortion",
+  "size": "14 KB"
+}

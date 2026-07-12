@@ -1,0 +1,11 @@
+{
+  "id": "demod-sierpinski-fx",
+  "name": "Sierpinski FX",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Modal reverb based on Sierpinski bloom",
+  "category": "Reverb",
+  "size": "9 KB"
+}

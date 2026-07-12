@@ -1,0 +1,11 @@
+{
+  "id": "demod-duck-dance",
+  "name": "Duck Dance",
+  "type": "app",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "BPM-locked looping LoFi Keys MkII duck dance (sprite + live scope)",
+  "category": "Visualizer",
+  "size": "1.8 MB"
+}

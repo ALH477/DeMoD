@@ -1,0 +1,11 @@
+{
+  "id": "demod-vox",
+  "name": "DeMoD Vox",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Vocoder and formant filter effect",
+  "category": "Vocoder",
+  "size": "9 KB"
+}

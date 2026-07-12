@@ -1,0 +1,11 @@
+{
+  "id": "demod-mycelium",
+  "name": "Mycelium",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Organic diffusion and resonance",
+  "category": "Reverb",
+  "size": "11 KB"
+}

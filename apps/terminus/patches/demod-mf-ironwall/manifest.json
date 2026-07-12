@@ -1,0 +1,11 @@
+{
+  "id": "demod-mf-ironwall",
+  "name": "IronWall",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Hard-clip distortion, full harmonic series (Metal Forge 01)",
+  "category": "Distortion",
+  "size": "5 KB"
+}

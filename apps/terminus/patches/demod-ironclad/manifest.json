@@ -1,0 +1,11 @@
+{
+  "id": "demod-ironclad",
+  "name": "Ironclad",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Heavy distortion and filtering",
+  "category": "Distortion",
+  "size": "11 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-cassette-wraith",
+  "name": "Cassette Wraith",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Lo-fi tape degradation and ghosting effect",
+  "category": "LoFi",
+  "size": "13 KB"
+}

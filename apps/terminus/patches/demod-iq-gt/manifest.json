@@ -1,0 +1,11 @@
+{
+  "id": "demod-iq-gt",
+  "name": "DeMoDIQ-GT",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Guitar-focused version of DeMoDIQ",
+  "category": "EQ",
+  "size": "28 KB"
+}

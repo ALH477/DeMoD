@@ -1,0 +1,11 @@
+{
+  "id": "demod-iq",
+  "name": "DeMoDIQ",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Parametric EQ with visual interface",
+  "category": "EQ",
+  "size": "21 KB"
+}

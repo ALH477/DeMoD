@@ -1,0 +1,11 @@
+{
+  "id": "demod-drum",
+  "name": "DeMoD Drum",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Percussive synthesizer drum kit",
+  "category": "Drums",
+  "size": "71 KB"
+}

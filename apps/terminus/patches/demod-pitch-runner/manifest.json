@@ -1,0 +1,11 @@
+{
+  "id": "demod-pitch-runner",
+  "name": "PITCH RUNNER",
+  "type": "app",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Learn any instrument: a note-highway that grades you on playing the right pitch in time and in tune.",
+  "category": "Learn",
+  "size": "56 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-exciter",
+  "name": "DeMoD Exciter",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Harmonic exciter and enhancer",
+  "category": "Enhancer",
+  "size": "7 KB"
+}

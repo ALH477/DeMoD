@@ -330,6 +330,33 @@
           '');
         };
 
+        # `nix run .#terminus` — TERMINUS home shell + DSP Studio with a live engine.
+        # Starts the orchestrator (which manages demod-rt) in the background, then
+        # runs TERMINUS. The orchestrator handles the engine lifecycle; when TERMINUS
+        # exits, the orchestrator is killed. Use this to test the full stack before
+        # pushing to origin.
+        apps.terminus = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "demod-terminus" ''
+            # Start the orchestrator in the background (manages demod-rt engine)
+            ${demod-orchestrator}/bin/demod-orchestrator &
+            ORCH_PID=$!
+            
+            # Give it a moment to start the engine
+            sleep 1
+            
+            # Set up environment for TERMINUS
+            export DEMOD_UI_BIN=${demod-ui}/bin/demod-ui
+            export DEMOD_PATCH_DIR=${./apps/terminus}/patches
+            
+            # Run TERMINUS
+            ${demod-ui}/bin/demod-ui ${./apps/terminus}/home.lua "$@"
+            
+            # Clean up the orchestrator when TERMINUS exits
+            kill $ORCH_PID 2>/dev/null || true
+          '');
+        };
+
         # `nix run .#check` — the pre-push gate (= ./dev check, against the tree).
         apps.check = {
           type = "app";

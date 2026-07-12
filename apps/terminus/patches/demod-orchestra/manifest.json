@@ -1,0 +1,11 @@
+{
+  "id": "demod-orchestra",
+  "name": "Orchestra Synth",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Orchestral layered synthesizer",
+  "category": "Synth",
+  "size": "82 KB"
+}

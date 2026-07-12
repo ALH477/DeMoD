@@ -1,0 +1,139 @@
+{
+  "v": 1,
+  "_comment": "Bundle SKUs, sold on two channels. STEAM: a cheaper, one-time Complete-the-Set DLC package licensed to the buyer's Steam account — a frozen snapshot of the collection at purchase time, no future additions. DEMOD MARKETPLACE: priced higher because it is a LIVING bundle — new patches are added over its lifetime and it installs/updates on the buyer's DeMoD account + device. 'value' is the full a-la-carte retail of the contents; per-channel 'savings' = value - that channel's price. 'match' is a glob over paid patch ids; 'includes' is an explicit id list; 'exclude_bundles' subtracts other bundles' ids (the 'everything else' complement). 'channels.steam.dlc_appid' = the Steam DLC App ID for that pack. Deluxe is the Steam Complete-the-Set PACKAGE of the three child DLCs (metal-forge + voices + effects = all 81 paid); Steam auto-discounts it by whatever children you already own, so the child Steam prices sum just above Deluxe. 'marketplace_transfer:false' = a Steam purchase does NOT grant the DeMoD-marketplace entitlement (separate channels, separate licenses). See PRICING.md.",
+  "currency": "USD",
+  "bundles": [
+    {
+      "id": "deluxe",
+      "name": "Deluxe Edition",
+      "value": 420,
+      "count": 81,
+      "match": "*",
+      "scope": "paid",
+      "marketplace_transfer": false,
+      "channels": {
+        "marketplace": {
+          "price": 150,
+          "savings": 270,
+          "license_type": "demod-account",
+          "updates": true,
+          "delivery": "device-install",
+          "pitch": "The whole collection, on your DeMoD account — with lifetime updates: every new patch we add joins your library. Installs straight to the device."
+        },
+        "steam": {
+          "price": 120,
+          "savings": 300,
+          "license_type": "steam-account",
+          "bundle_type": "complete-the-set",
+          "complete_the_set": ["metal-forge", "voices", "effects"],
+          "updates": false,
+          "pitch": "The entire collection — $420 of patches for $120. A one-time Steam Complete-the-Set: it's the three packs together, and Steam discounts it by whatever you already own."
+        }
+      }
+    },
+    {
+      "id": "metal-forge",
+      "name": "Metal Forge Pack",
+      "value": 200,
+      "count": 30,
+      "match": "demod-mf-*",
+      "scope": "paid",
+      "marketplace_transfer": false,
+      "channels": {
+        "marketplace": {
+          "price": 74.99,
+          "savings": 125,
+          "license_type": "demod-account",
+          "updates": true,
+          "delivery": "device-install",
+          "pitch": "30 metal/distortion/dynamics effects ($200 value), with lifetime updates on your DeMoD account."
+        },
+        "steam": {
+          "price": 59.99,
+          "savings": 140,
+          "license_type": "steam-account",
+          "bundle_type": "complete-the-set",
+          "dlc_appid": "STEAM_DLC_APPID_METAL_FORGE",
+          "updates": false,
+          "pitch": "30 metal/distortion/dynamics effects ($200 value) for $60 — a one-time Steam snapshot."
+        }
+      }
+    },
+    {
+      "id": "voices",
+      "name": "Voices Pack",
+      "value": 110,
+      "count": 18,
+      "scope": "paid",
+      "marketplace_transfer": false,
+      "includes": [
+        "demod-brass",
+        "demod-choir",
+        "demod-clarinet",
+        "demod-clav",
+        "demod-combo-organ",
+        "demod-ensemble",
+        "demod-flute",
+        "demod-fm-keys",
+        "demod-freereed",
+        "demod-glockenspiel",
+        "demod-hammond",
+        "demod-kalimba",
+        "demod-musicbox",
+        "demod-sax",
+        "demod-sitar",
+        "demod-steel",
+        "demod-tubular-bells",
+        "demod-violin"
+      ],
+      "channels": {
+        "marketplace": {
+          "price": 44.99,
+          "savings": 65,
+          "license_type": "demod-account",
+          "updates": true,
+          "delivery": "device-install",
+          "pitch": "18 acoustic/orchestral instrument voices ($110 value), with lifetime updates on your DeMoD account."
+        },
+        "steam": {
+          "price": 34.99,
+          "savings": 75,
+          "license_type": "steam-account",
+          "bundle_type": "complete-the-set",
+          "dlc_appid": "STEAM_DLC_APPID_VOICES",
+          "updates": false,
+          "pitch": "18 instrument voices ($110 value) for $35 — a one-time Steam snapshot."
+        }
+      }
+    },
+    {
+      "id": "effects",
+      "name": "Effects & More Pack",
+      "value": 110,
+      "count": 33,
+      "match": "*",
+      "scope": "paid",
+      "exclude_bundles": ["metal-forge", "voices"],
+      "marketplace_transfer": false,
+      "channels": {
+        "marketplace": {
+          "price": 44.99,
+          "savings": 65,
+          "license_type": "demod-account",
+          "updates": true,
+          "delivery": "device-install",
+          "pitch": "33 effects, dynamics + utilities ($110 value), with lifetime updates on your DeMoD account."
+        },
+        "steam": {
+          "price": 34.99,
+          "savings": 75,
+          "license_type": "steam-account",
+          "bundle_type": "complete-the-set",
+          "dlc_appid": "STEAM_DLC_APPID_EFFECTS",
+          "updates": false,
+          "pitch": "33 effects + utilities ($110 value) for $35 — a one-time Steam snapshot."
+        }
+      }
+    }
+  ]
+}

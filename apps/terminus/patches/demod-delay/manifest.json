@@ -1,0 +1,11 @@
+{
+  "id": "demod-delay",
+  "name": "DeMoD Delay",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Clean stereo delay with modulation",
+  "category": "Delay",
+  "size": "8 KB"
+}

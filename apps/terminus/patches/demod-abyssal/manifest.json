@@ -1,0 +1,11 @@
+{
+  "id": "demod-abyssal",
+  "name": "Abyssal",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Deep water synth with reflections and drift",
+  "category": "Synth",
+  "size": "64 KB"
+}

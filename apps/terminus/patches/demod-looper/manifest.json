@@ -1,0 +1,11 @@
+{
+  "id": "demod-looper",
+  "name": "DeMoD Looper",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Hold/overdub loop buffer — record, overdub, play, clear",
+  "category": "Looper",
+  "size": "6 KB"
+}

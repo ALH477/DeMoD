@@ -1,0 +1,11 @@
+{
+  "id": "demod-decimator",
+  "name": "Decimator",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Bit crusher and sample rate reducer",
+  "category": "Distortion",
+  "size": "11 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-lofi-keys-mk2",
+  "name": "LoFi Keys MkII",
+  "type": "synth",
+  "version": "0.4.1",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Physically modeled electric piano with tape and Sierpinski bloom reverb",
+  "category": "Piano",
+  "size": "184 KB"
+}

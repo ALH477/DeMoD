@@ -1,0 +1,11 @@
+{
+  "id": "demod-mf-tempoecho",
+  "name": "TempoEcho",
+  "type": "fx",
+  "version": "1.0.0",
+  "author": "DeMoD LLC",
+  "license": "free",
+  "description": "Ping-pong delay with BPM subdivision (Metal Forge 19)",
+  "category": "Time",
+  "size": "8 KB"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "demod-argent-metal",
+  "name": "Argent Metal",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Bright metallic synth",
+  "category": "Synth",
+  "size": "58 KB"
+}

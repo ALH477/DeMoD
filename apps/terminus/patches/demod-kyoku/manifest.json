@@ -1,0 +1,11 @@
+{
+  "id": "demod-kyoku",
+  "name": "KyokuGen",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Kyoto-inspired generative synth",
+  "category": "Synth",
+  "size": "55 KB"
+}

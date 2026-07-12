@@ -1,0 +1,11 @@
+{
+  "id": "demod-popbass",
+  "name": "Pop Bass",
+  "type": "synth",
+  "version": "1.0.0",
+  "author": "DeMoD Labs",
+  "license": "free",
+  "description": "Punchy modern bass synth",
+  "category": "Bass",
+  "size": "47 KB"
+}
