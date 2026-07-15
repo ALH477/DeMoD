@@ -2,6 +2,15 @@
 
 > A vertically integrated real-time audio + control + mesh networking stack that runs entirely locally, with zero cloud dependency, zero GPU dependency, and sub-millisecond determinism.
 
+> **What lives in *this* repo vs. the ecosystem.** This repository (`DeMoD`) ships the
+> pure-software GUI framework, the companion-shell SDK, the four shell apps (`auto`, `dash`,
+> `gcs`, `rov`), the TERMINUS flagship application layer (`apps/terminus/`), the `dm.dcf` 17-byte
+> `DeModFrame` wire codec, the `demod-rt` audio engine + Haskell orchestrator, and the Quanta codec.
+> The RT audio guest OS (ArchibaldOS), the NixOS host with DSP-VM management (Oligarchy), the
+> multi-language HydraMesh certification suite, and local voice cloning (DeMoD Voice) live in
+> **separate sibling repositories** — clone them individually with the guides in
+> [Getting Started](#getting-started).
+
 ## The Problem
 
 Modern audio/embedded/mesh stacks force you to choose:
@@ -26,7 +35,7 @@ Underneath, an optional RT audio engine (JACK + Haskell orchestrator) can run on
 
 **Key insight:** A button should not need a 200MB runtime, a compositor, and three layers of abstraction to light up. Embedded panels, kiosks, instruments, and weird little screens deserve software that respects the silicon.
 
-### ArchibaldOS — RT Audio Guest OS
+### ArchibaldOS — RT Audio Guest OS `sibling repo`
 
 A NixOS guest OS tuned for sub-millisecond RT audio. PREEMPT_RT kernel, JACK2, PipeWire, musnix, CPU isolation, hugepages, mlock. It runs inside a QEMU/KVM VM with VFIO passthrough of USB audio controllers.
 
@@ -34,7 +43,7 @@ The host stays responsive (gaming, desktop, video) while the guest handles deter
 
 **Key insight:** You don't have to choose between host responsiveness and guest determinism. VFIO passthrough + CPU isolation + hugepages gives you both.
 
-### Oligarchy — NixOS Host with DSP VM Management
+### Oligarchy — NixOS Host with DSP VM Management `sibling repo`
 
 A NixOS host that manages the DSP VM, personas (studio/gaming/dev/battery), and a control center. It isolates CPU cores for the VM, allocates hugepages, and provides a unified CLI (`oligarchy-dsp`) for VM lifecycle management.
 
@@ -42,9 +51,9 @@ The entire system is reproducible from a fresh `git clone`.
 
 **Key insight:** Infrastructure should be declarative. You shouldn't have to manually configure CPU isolation, hugepages, and VFIO passthrough every time you set up a new machine.
 
-### HydraMesh — Certified Multi-Language Mesh Protocol
+### HydraMesh — Certified Multi-Language Mesh Protocol `sibling repo`
 
-A certified multi-language mesh protocol with a 17-byte wire quantum (`DeModFrame`). The wire codec is byte-identical across C/Rust/Python/Lua/Go/Java/Node.js/Perl/C++ and verified by a 246-vector golden certificate in CI.
+A certified multi-language mesh protocol with a 17-byte wire quantum (`DeModFrame`). The wire codec is byte-identical across C/Rust/Python/Lua/Go/Java/Node.js/Perl/C++ and verified by a 246-vector golden certificate in CI. This repo ships the C/Lua slice of that codec (the `dm.dcf` transport); the full 10-language certification suite lives in the HydraMesh repo.
 
 DCF-Audio and DCF-Game are adapters over the quantum, enabling collaborative audio and game state synchronization across distributed nodes.
 
@@ -67,7 +76,7 @@ You write the UI once. You deploy it everywhere. The audio engine scales from a 
 ### Deterministic End-to-End
 
 The latency budget is certified at every layer:
-- **Wire format** — HydraMesh certifies the 17-byte `DeModFrame` across 10+ languages. CI diffs regenerated vs committed vectors on every push.
+- **Wire format** — HydraMesh certifies the 17-byte `DeModFrame` across 10+ languages. CI diffs regenerated vs committed vectors run in the HydraMesh repo (the C/Lua reference slice also builds here).
 - **Audio path** — ArchibaldOS tunes the RT kernel, JACK2, and PipeWire for 0.33ms buffer latency (32 samples @ 96kHz).
 - **Scheduling** — Oligarchy isolates CPU cores, allocates hugepages, and passes USB controllers via VFIO. The guest gets deterministic scheduling without host interference.
 
@@ -152,6 +161,8 @@ How?
 
 ## Getting Started
 
+### This repository (DeMoD)
+
 ### Embedded Audio UI (No GPU)
 
 ```bash
@@ -161,7 +172,11 @@ cd DeMoD
 ./dev check          # Run all tests
 ```
 
-Write a Lua script. Deploy it to a 320px panel, a car head unit, or a desktop workstation. Same code, same API, same look.
+Write a Lua script. Deploy it to a 320px panel, a car head unit, or a desktop workstation. Same code, same API, same look. No sibling repos required — the framework, shells, `dm.dcf` transport, audio engine, and Quanta codec all build from this tree.
+
+### Sibling repositories (clone separately)
+
+The RT audio host, the audio host OS, the multi-language protocol certification suite, and local voice cloning each ship as their own repo. Clone only the ones you need; they communicate over sockets, shared memory, and the `DeModFrame` wire format, never as linked libraries.
 
 ### RT Audio VM (Sub-Millisecond Latency)
 
@@ -195,19 +210,23 @@ cd HydraMesh
 make certify         # Verify the wire codec across Python + Rust + C
 ```
 
-Read `Documentation/WIRE_QUANTUM_SPEC.md` to understand the 17-byte `DeModFrame`. Read `Documentation/DCF_AUDIO_SPEC.md` to understand collaborative audio over the quantum.
+Read `Documentation/WIRE_QUANTUM_SPEC.md` to understand the 17-byte `DeModFrame`. Read `Documentation/DCF_AUDIO_SPEC.md` to understand collaborative audio over the quantum. The C/Lua reference slice that DeMoD uses at runtime ships in *this* repo (`src/ipc/dm_dcf.c`); HydraMesh holds the full 10-language golden-certificate suite and the cross-language diff CI.
 
 ### Local AI Voice (Zero Cloud Dependency)
 
-Oligarchy includes DeMoD Voice (Coqui XTTS-v2, Piper). No AWS. No monthly bill. Your hardware, your voice models.
+```bash
+git clone https://github.com/ALH477/Oligarchy
+cd Oligarchy
+# Coqui XTTS-v2 + Piper run locally; no AWS, no monthly bill.
+```
 
-See `modules/demod-voice/README.md` in the Oligarchy repo.
+Oligarchy includes DeMoD Voice (Coqui XTTS-v2, Piper). Your hardware, your voice models. See `modules/demod-voice/README.md` in the Oligarchy repo.
 
 ## The Bottom Line
 
 a **vertically integrated system** — protocol → transport → codec → audio engine → GUI framework → shell applications → VM infrastructure → build system → certification. Every layer talks to every other layer through clean boundaries (sockets, shared memory, wire format).
 
-The licensing model (PolyForm Shield, dual-license) shows commercialization, not just hacking.
+The licensing model is layered by design: this repo is **MPL-2.0** (framework + shells), **LGPL-3.0** (`dm.dcf` wire codec), **GPLv3-or-commercial** (the audio stack + Quanta codec), and **PolyForm Shield 1.0.0** (the TERMINUS application layer in `apps/terminus/` — source-available, non-commercial; commercial use requires a paid license, see `apps/terminus/README.md`). The sibling repos carry their own licenses (see `LICENSING.md`). Dual-licensing the engine shows commercialization, not just hacking.
 
 This isn't a hobby project anymore. It's a coherent platform with a clear architectural vision. The RT audio VM alone would be a solid year's work for most engineers. You've got that plus a certified multi-language protocol plus a software renderer plus a codec.
 
@@ -215,4 +234,4 @@ This isn't a hobby project anymore. It's a coherent platform with a clear archit
 
 **Main Contributor:** [ALH477](https://github.com/ALH477)  
 **Contact:** alh477@proton.me  
-**License:** PolyForm Shield 1.0.0 (source-available, non-commercial)
+**License:** MPL-2.0 (framework + shells); LGPL-3.0 (`dm.dcf`); GPLv3-or-commercial (audio stack + Quanta); PolyForm Shield 1.0.0 (TERMINUS, `apps/terminus/`) — see `LICENSING.md`
