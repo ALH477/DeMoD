@@ -20,20 +20,30 @@ A **pure software-rendered GUI framework** (C11 + SDL2 + Lua, **no GPU** — the
 - **Remote transport** — `dm.dcf` (`src/ipc/dm_dcf.c`), a 17-byte HydraMesh frame over UDP/WebSocket;
   `audio-stack/bridge/` relays it. Powers the remote/browser clients.
 - **Browser client** — the framework compiles to WASM (`CMakeLists.txt` emscripten path, `web/`).
+- **TERMINUS** — `apps/terminus/`, the flagship application layer: a unified home shell + DSP Studio
+  with a full control surface, modulation matrix, and DAW-style mixer/sequencer. **PolyForm Shield
+  1.0.0** (source-available, non-commercial; commercial use requires a paid license — see
+  `apps/terminus/README.md`). Not MPL; do not copy its code into the open framework.
 - **MCP server** — `mcp/demod_mcp_server.py`, exposes build/render/test/engine-control as agent tools.
+
+> **Sibling repos.** ArchibaldOS (RT audio guest OS), Oligarchy (NixOS host + DSP VM management),
+> HydraMesh (multi-language protocol certification suite), and DeMoD Voice (local AI voice cloning) are
+> **separate repositories** under the same GitHub org. They communicate over sockets, shared memory,
+> and the `DeModFrame` wire format — never as linked libraries. See `WHY.md` for clone guides and the
+> full ecosystem map.
 
 ## Golden commands (use these — they wrap every incantation)
 
 ```bash
 ./dev check            # build + EVERY test CI runs (+ obd2). THE pre-push gate. Run it before finishing.
-./dev run <target>     # auto|dash|gcs|rov|mcp or an examples/ name (from the working tree)
+./dev run <target>     # auto|dash|gcs|rov|mcp|terminus or an examples/ name (from the working tree)
 ./dev shot <target> [frame]   # headless render -> a PNG you can inspect (no display needed)
 ./dev test <name|all>  # font|loopback|ws_loopback|engine_e2e|obd2|smoke
 ./dev build [dcf]      # ./demod-ui (dcf adds dm.dcf); ./dev doctor · fmt|lint · watch · compiledb
 ```
 
 `./dev` has zero deps and **auto-enters `nix develop`** if the toolchain isn't on PATH. Raw equivalents:
-`make` / `make DCF=1` / `make test`; `nix run .#{auto,dash,gcs,rov,quanta,mcp,check,dev}`; `nix build .#{default,quanta}`.
+`make` / `make DCF=1` / `make test`; `nix run .#{auto,dash,gcs,rov,quanta,mcp,terminus,check,dev}`; `nix build .#{default,quanta}`.
 
 **Definition of done:** `./dev check` is green; new files carry an `SPDX-License-Identifier` header;
 changes are additive (don't reformat the tree — lint is advisory). Verify UI changes with `./dev shot`
@@ -85,6 +95,9 @@ Multi-license by layer (full map in `LICENSING.md`); **every file has an SPDX he
   `docs/automotive-compliance.md`).
 - **Quanta codec** (`quanta/` analyzer + render + freeze + QSC format) — **GPLv3-only OR commercial**
   (the same DEMOD DUAL LICENSE); its `ui/quanta_panel.lua` is **MPL-2.0**. Standalone program.
+- **TERMINUS** (`apps/terminus/`) — **PolyForm Shield 1.0.0** (source-available, non-commercial).
+  Commercial use requires a paid license + 3% hardware fee; see `apps/terminus/README.md`. Not MPL,
+  not GPL — do not copy TERMINUS code into the open framework or the audio stack.
 
 **Reserved trade dress.** The *assembled* DeMoD/TERMINUS look — the oscilloscope-phosphor palette +
 CRT scanlines/vignette/pulse + Sierpinski-glow + 8×16 phosphor type + blade/coverflow shell, **as a

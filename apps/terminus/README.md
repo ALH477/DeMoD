@@ -43,9 +43,9 @@ make
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 3 ./demod-ui apps/terminus/home.lua
 ```
 
-## Free Example Patches
+## Example Patches
 
-The `patches/` directory includes 46 free example Faust effects (boost, delay, reverb, distortion, etc.). These are included as examples to demonstrate the patch system.
+The `patches/` directory includes 46 source-available example Faust effects (boost, delay, reverb, distortion, etc.) under PolyForm Shield 1.0.0. These are included as examples to demonstrate the patch system.
 
 ## Licensing
 

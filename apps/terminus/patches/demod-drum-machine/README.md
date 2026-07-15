@@ -1,7 +1,7 @@
 # DRUM MACHINE
 
 A per-voice **step sequencer** app-patch for the TERMINUS shell, built on the demod-ui
-framebuffer + the shared `patches/games/gamekit.lua`. It's the classic TR-style grid
+framebuffer. It's the classic TR-style grid
 (rows = drum voices, columns = time) distilled to its proven core and adapted to a
 320–1280px software-rendered display driven by an encoder, buttons, gamepad or keyboard.
 

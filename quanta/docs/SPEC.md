@@ -500,4 +500,4 @@ this appendix is the behavioral reference. Frozen speech artifacts fall under §
 
 ---
 
-*DeMoD LLC · demod.ltd · This document is the normative reference for `demod-quanta` v1. Changes require a version bump and a changelog entry.*
+*DeMoD LLC · alh477@proton.me · This document is the normative reference for `demod-quanta` v1. Changes require a version bump and a changelog entry.*

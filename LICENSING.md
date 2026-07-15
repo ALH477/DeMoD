@@ -1,13 +1,13 @@
 # Licensing
 
-This repository contains **two independently-licensed parts**. They are separate
+This repository contains **four independently-licensed layers**. They are separate
 programs that talk to each other only over a Unix socket and shared memory — there is
 no build dependency in either direction — so you can take one without the other.
 
 ## The framework — MPL-2.0
 
-Everything at the repository root **except `audio-stack/`** is the **DeMoD UI
-framebuffer GUI framework**, licensed under the **Mozilla Public License 2.0**
+Everything at the repository root **except `audio-stack/`, `quanta/`, and `apps/terminus/`** is the
+**DeMoD UI framebuffer GUI framework**, licensed under the **Mozilla Public License 2.0**
 (`LICENSE`, SPDX `MPL-2.0`):
 
 ```
@@ -47,6 +47,20 @@ exception is the framework-facing browser panel **`quanta/ui/quanta_panel.lua`**
 **MPL-2.0** (UI layer, one-way compatible into the MPL framework). A generated frozen `.dsp`
 is the property of the score owner. Like the audio stack, quanta is a **separate program**
 from the framework — the framework has no build dependency on it.
+
+## TERMINUS — PolyForm Shield 1.0.0 (source-available, non-commercial)
+
+Everything under **`apps/terminus/`** — the flagship home shell + DSP Studio with its full
+control surface, modulation matrix, DAW-style mixer/sequencer, and example patches — is
+licensed under **PolyForm Shield 1.0.0** (`apps/terminus/LICENSE`, SPDX
+`LicenseRef-PolyForm-Shield-1.0.0`):
+
+- You can read the code, run it, and learn from it for **personal and non-commercial** use.
+- **Commercial use requires a paid license** + 3% hardware-revenue share. To purchase or
+  discuss terms, email **alh477@proton.me**. See `apps/terminus/README.md` for details.
+
+TERMINUS is **not MPL** and **not GPL** — do not copy its code into the open framework or the
+audio stack. The framework and shells remain MPL; TERMINUS is a separate application layer on top.
 
 ## Why the split is clean
 
@@ -92,6 +106,7 @@ not committed), and the HydraMesh DCF codec headers (LGPL-3.0, vendored in
 | `audio-stack/**` (engine + orchestrator) | `GPL-3.0-only` (or commercial) |
 | `quanta/**` (analyzer/render/freeze + QSC) | `GPL-3.0-only` (or commercial) |
 | `quanta/ui/quanta_panel.lua` (framework panel) | `MPL-2.0` |
+| `apps/terminus/**` (home shell + DSP Studio + patches) | `LicenseRef-PolyForm-Shield-1.0.0` |
 | `src/ipc/dm_dcf.c`, `audio-stack/bridge/**`, `third_party/hydramesh/**` (DCF, opt-in) | `LGPL-3.0-only` |
 | `src/crypto/monocypher*` | `CC0-1.0 OR BSD-2-Clause` |
 | `src/db/streamdb.*` | `LGPL-2.1-or-later` |

@@ -6,12 +6,16 @@ abstract: >-
   framework (an ARGB8888 framebuffer drawn scanline-by-scanline, no GPU) plus everything
   built on it: a deterministic C real-time audio engine and a Haskell orchestrator
   (separate programs over a socket + shared-memory IPC), an optional split over UDP via the
-  DCF / HydraMesh mesh protocol, and DeMoD Quanta — an analysis-to-synthesis codec whose
+  DCF / HydraMesh mesh protocol, DeMoD Quanta — an analysis-to-synthesis codec whose
   Mallat–Zhang matching-pursuit analyzer freezes an acoustic-quanta score into a pure static
-  Faust program (the decoder is a .dsp), verified to null against the C reference player.
+  Faust program (the decoder is a .dsp), verified to null against the C reference player,
+  and TERMINUS — a flagship home shell + DSP Studio application layer. Multi-license by
+  layer: MPL-2.0 (framework + shells), LGPL-3.0 (dm.dcf transport), GPLv3-or-commercial
+  (audio stack + Quanta codec), PolyForm Shield 1.0.0 (TERMINUS app).
 type: software
 version: "0.1.0"
 license: MPL-2.0
+license-Note: "Multi-license by layer: MPL-2.0 (framework + shells), LGPL-3.0 (dm.dcf), GPL-3.0-only-or-commercial (audio-stack + quanta), LicenseRef-PolyForm-Shield-1.0.0 (apps/terminus). See LICENSING.md."
 repository-code: "https://github.com/ALH477/DeMoD"
 # DOI is assigned by Zenodo on first archive; paste it back here as `doi:` and in `identifiers`.
 # doi: 10.5281/zenodo.XXXXXXX
@@ -19,7 +23,7 @@ authors:
   - given-names: Asher
     family-names: LeRoy
     affiliation: "DeMoD LLC"
-    email: demodllc@gmail.com
+    email: alh477@proton.me
     orcid: "https://orcid.org/0009-0006-5842-4975"
   - name: "DeMoD LLC"
 keywords:

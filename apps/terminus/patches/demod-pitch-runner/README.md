@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0 -->
 # PITCH RUNNER
 
-A **free** TERMINUS app-patch: a Beat-Saber × Guitar-Hero note highway built to **teach a
+A **source-available** TERMINUS app-patch (PolyForm Shield 1.0.0): a Beat-Saber × Guitar-Hero note highway built to **teach a
 real instrument**. Notes fly down toward a hit-line and a bottom **target view** (keyboard
 or fretboard) shows exactly where to play the next one. Pick any instrument — hits are
 graded on **pitch**, so it's instrument-agnostic.
@@ -57,7 +57,7 @@ Best score persists per instrument + content at `~/.config/demod/games/`.
 - `view.lua` — the keyboard + fretboard target widget.
 - `songs.lua` — drill catalogue + authored riffs.
 - Music theory (`cents_off`, scales, note names) is reused from `../demod-learn/theory.lua`;
-  shared draw/sound/save helpers from `../games/gamekit.lua`.
+  shared draw/sound/save helpers are bundled in the patch directory.
 
 Run the logic tests: `~/demod-ui/demod-ui patches/demod-pitch-runner/selftest.lua`
 

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0 -->
 # LEARN — music from zero
 
-A **free** TERMINUS app-patch for people who have never played or read music. It
+A **source-available** TERMINUS app-patch (PolyForm Shield 1.0.0) for people who have never played or read music. It
 teaches by doing, not by lecturing — every lesson lets you make a correct sound on
 the first try.
 
@@ -34,5 +34,7 @@ loaded** (device orchestrator, or `nix run .#desktop`). With no synth/engine it 
 - `main.lua` — the app (UI only; one focus field, `back = dm.quit`).
 - `theory.lua` — pure music theory (note names, frequencies, scales, intervals, phrase
   generation). No `dm.*`, so it unit-tests under plain `lua` (see `selftest.lua`).
+
+Shared draw/sound/save helpers are bundled in the patch directory.
 
 © 2026 DeMoD LLC.

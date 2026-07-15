@@ -6,7 +6,7 @@ before you push.
 
 ```bash
 ./dev check                 # build + every test CI runs (+ obd2). the pre-push gate.
-./dev run auto              # run a shell app from the working tree (auto|dash|gcs|rov|mcp|example)
+./dev run auto              # run a shell app from the working tree (auto|dash|gcs|rov|mcp|terminus|example)
 ./dev shot dsp_studio 60    # headless render -> a PNG (no display needed)
 ./dev test loopback         # one test (font|loopback|ws_loopback|engine_e2e|obd2|smoke|all)
 ./dev build [dcf]           # build ./demod-ui (dcf = with the dm.dcf transport)
@@ -35,7 +35,7 @@ PATH — so a fresh `git clone` + `./dev check` works if you have Nix. Without N
 
 ## Running from a working tree
 
-`nix run .#{auto,dash,gcs,rov,quanta,mcp,check}` runs the store-built versions. To run from your **checkout**,
+`nix run .#{auto,dash,gcs,rov,quanta,mcp,terminus,check}` runs the store-built versions. To run from your **checkout**,
 use `./dev run <target>` (it builds `DCF=1` and sets the env below). Or set the env yourself:
 
 | Var | For | Default |
@@ -84,6 +84,8 @@ whole-tree `./dev fmt --all` would be a large diff — keep it scoped to what yo
   (the DEMOD DUAL LICENSE). Separate program over socket/shm IPC; see [`LICENSING.md`](LICENSING.md).
 - **Quanta codec** (`quanta/` — analyzer + render + freeze + QSC) — **GPLv3-only OR commercial**
   (same DEMOD DUAL LICENSE); the `ui/` panel is **MPL-2.0**. Standalone CLIs; see [`LICENSING.md`](LICENSING.md).
+- **TERMINUS** (`apps/terminus/` — home shell + DSP Studio + patches) — **PolyForm Shield 1.0.0**
+  (source-available, non-commercial); see [`apps/terminus/README.md`](apps/terminus/README.md).
 - Every file carries an SPDX header (CI-relevant; `CONTRIBUTING.md`).
 
 ## The MCP server (drive the repo from an AI agent)

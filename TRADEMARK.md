@@ -63,8 +63,8 @@ identifier.
   sponsors, or is affiliated with it.
 - Use the DeMoD identity/marks to brand a competing product.
 
-To use the marks or trade dress beyond the factual "built on" reference above, ask:
-<https://demod.ltd>.
+To use the marks or trade dress beyond the factual "built on" reference above, contact
+**alh477@proton.me**.
 
 This policy covers trademarks and trade dress only. It does not restrict the rights the
 MPL-2.0 grants you in the code.

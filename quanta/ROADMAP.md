@@ -1,6 +1,6 @@
 # demod-quanta — Follow-up Roadmap
 
-*DeMoD LLC · demod.ltd · roadmap as of v0.2.0-streaming*
+*DeMoD LLC · alh477@proton.me · roadmap as of v0.2.0-streaming*
 
 This is a working roadmap for the Gabor-quanta codec whose decoder compiles to a
 static Faust program. It is written to the project's existing culture: **every

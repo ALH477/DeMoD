@@ -7,6 +7,11 @@ versioning while pre-1.0.
 ## [Unreleased]
 
 ### Added
+- **TERMINUS application layer** (`apps/terminus/`, PolyForm Shield 1.0.0): a unified home shell
+  + DSP Studio with a full control surface, modulation matrix, and DAW-style mixer/sequencer.
+  Includes 46 example Faust effect patches and mini-game patches. Run with `./dev run terminus` or
+  `nix run .#terminus`. Source-available, non-commercial; commercial use requires a paid license —
+  see `apps/terminus/README.md`.
 - **AR passthrough HUD** (opt-in, `make ARHUD=1`): composite the flat UI over a live
   camera/video feed as a background layer, turning any Lua app into an instrument
   overlay. New `dm.ar` binding (`open`/`config`/`status`/`close`) reads out-of-process
@@ -42,7 +47,7 @@ versioning while pre-1.0.
   proof. Flake outputs `demod-ui-dcf` and `demod-remote-bridge`.
 - Continuous integration (GitHub Actions): builds the framework, runs the UTF-8
   tests, the DCF loopback, and a headless render-smoke of every example.
-- Screenshots + an ecosystem section (ArchibaldOS / HydraMesh) in the README.
+- Screenshots + an ecosystem section (ArchibaldOS / Oligarchy / HydraMesh / TERMINUS) in the README.
 - **Quanta speech back-end (v0.3.1)**: a from-scratch Harmonic + Noise / harmonic
   minimum-phase **speech vocoder** — new C tools `quanta-speech-analyze` /
   `-render` / `-sines` (QSP container `include/qsp.h`; McAulay–Quatieri continuous

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0 -->
 # SNAKE
 
-A **free** TERMINUS arcade app-patch — the classic, on the demod-ui engine. Eat food to
+A **source-available** TERMINUS arcade app-patch (PolyForm Shield 1.0.0) — the classic, on the demod-ui engine. Eat food to
 grow; hit a wall or yourself and the run ends.
 
 ```bash
@@ -26,6 +26,6 @@ Movement runs on an accumulator (`acc += dt; while acc >= STEP do step() end`) s
 advances at a constant rate regardless of frame-rate or vsync jitter — deterministic
 stepping decoupled from rendering. No audio dependency; runs headless.
 
-Shared draw/save helpers come from `../games/gamekit.lua`.
+Shared draw/save helpers are bundled in the patch directory.
 
 © 2026 DeMoD LLC.

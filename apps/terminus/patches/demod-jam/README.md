@@ -137,5 +137,4 @@ This patch is deliberately split so the open framework stays cleanly separable:
 
 The UX depends on the framework as a discrete module; no Shield code flows into the
 LGPL framework and vice versa. The `manifest.json` `"license": "free"` field is the
-marketplace gratis/paid flag (per `MANIFESTS.md`), not an SPDX license — the per-file
-SPDX headers are authoritative.
+marketplace gratis/paid flag, not an SPDX license — the per-file SPDX headers are authoritative.

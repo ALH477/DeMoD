@@ -124,8 +124,8 @@ and **dedicated servers** that are the Docker containers / runtime (`dcfcpp serv
 `serve-steam`, the open GameNetworkingSockets backend by default; the proprietary
 Steamworks SDK adds SDR relay + lobbies + server browser). The channel/codec a Steam
 endpoint must match is the same rendezvous this patch shows. See
-[`../../STEAM_MULTIPLAYER.md`](../../STEAM_MULTIPLAYER.md) and
-`HydraMesh/Documentation/DCF_STEAM_SPEC.md`.
+`HydraMesh/Documentation/DCF_STEAM_SPEC.md` in the HydraMesh repo (the former
+`STEAM_MULTIPLAYER.md` in this repo has been removed).
 
 ## Quick reference
 

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0 -->
 # RHYTHM RUNNER
 
-A **free** TERMINUS arcade app-patch — the first game on the demod-ui engine. Notes
+A **source-available** TERMINUS arcade app-patch (PolyForm Shield 1.0.0) — the first game on the demod-ui engine. Notes
 scroll down three lanes toward a hit-line; move the lane cursor and **strike on the
 beat**. Clean hits play that lane's note through the synth, so good play *is* music.
 
@@ -36,7 +36,7 @@ fully playable, just silent — so it loads anywhere, including headless.
 - `main.lua` — the game (UI + state; one cursor, `back` returns/quits).
 - `chart.lua` — pure beat-map generation + hit judging. No `dm.*`, so it unit-tests under
   the embedded interpreter (`selftest.lua`).
-- Shared draw/sound/save helpers come from `../games/gamekit.lua`.
+- Shared draw/sound/save helpers are bundled in the patch directory.
 
 Run the logic tests: `~/demod-ui/demod-ui patches/demod-rhythm/selftest.lua`
 

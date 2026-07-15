@@ -15,7 +15,7 @@ DeMoD paints its own pixels. There is no OpenGL, no Vulkan, no shader, no browse
 
 You script the interface in Lua. The same script runs on a 320-pixel panel wired inside an instrument and on a 1080p desktop, because this thing was built to survive on hardware that has no business running a GUI. Underneath, an optional real-time audio stack (a C JACK engine + a Haskell orchestrator) can run on the same box or on another one across a mesh — see [Ecosystem](#ecosystem).
 
-**Two licenses:** the GUI **framework** (this repo's root) is **MPL-2.0** — build anything on it, open or closed. The dual-licensed engines — the **audio stack** (`audio-stack/`) and the **Quanta codec** (`quanta/`) — are **GPLv3-or-commercial**. They are separate programs (socket/shm IPC, or standalone CLIs), so taking only the framework never touches the GPL. Full breakdown in [`LICENSING.md`](LICENSING.md).
+**Four licenses, layered by component:** the GUI **framework** (this repo's root) is **MPL-2.0** — build anything on it, open or closed. The `dm.dcf` transport is **LGPL-3.0**. The dual-licensed engines — the **audio stack** (`audio-stack/`) and the **Quanta codec** (`quanta/`) — are **GPLv3-or-commercial**. The **TERMINUS** app (`apps/terminus/`) is **PolyForm Shield 1.0.0** (source-available, non-commercial). They are separate programs (socket/shm IPC, or standalone CLIs), so taking only the framework never touches the GPL. Full breakdown in [`LICENSING.md`](LICENSING.md).
 
 ## Why this exists
 
@@ -266,13 +266,17 @@ See [`mcp/README.md`](mcp/README.md) for the tool list.
 
 ## Ecosystem
 
-This repo is the framework + audio core. It's the foundation for a wider open stack:
+This repo ships the framework, audio core, Quanta codec, and the TERMINUS flagship app. It's the
+foundation for a wider open stack:
 
-- **TERMINUS** (`apps/terminus/`) — the flagship application layer: a unified home shell + DSP Studio with a full control surface, modulation matrix, and DAW-style mixer/sequencer. PolyForm Shield (source-available, non-commercial). Commercial use requires a paid license + 3% hardware fee. Contact alh477@proton.me.
+- **TERMINUS** (`apps/terminus/`) — the flagship application layer: a unified home shell + DSP Studio with a full control surface, modulation matrix, and DAW-style mixer/sequencer. **PolyForm Shield 1.0.0** (source-available, non-commercial). Commercial use requires a paid license + 3% hardware fee. Contact **alh477@proton.me**.
 - **[ArchibaldOS](https://github.com/ALH477/ArchibaldOS)** — a real-time-audio NixOS distribution
   that this runs on. Ships for **x86_64**, **aarch64**, and — unusually — **RISC-V**: a mainline
   PREEMPT_RT image for the StarFive JH7110 (VisionFive 2 / DeepComputing Framework 13 RV). If you
   want deterministic audio on RISC-V, that's the front door (see its `docs/riscv.md`).
+- **[Oligarchy](https://github.com/ALH477/Oligarchy)** — a NixOS host that manages the DSP VM,
+  personas (studio/gaming/dev/battery), and includes DeMoD Voice (local AI voice cloning via Coqui
+  XTTS-v2 + Piper, no cloud dependency).
 - **[HydraMesh](https://github.com/ALH477/HydraMesh)** — the DCF protocol behind the remote
   transport above: a certified 17-byte wire quantum with multi-language SDKs.
 
@@ -348,6 +352,10 @@ demod-ui/                 # the framework — MPL-2.0
   quanta/                 optional analysis-to-synthesis Faust-freeze codec — GPLv3/commercial
     src/  include/        analyzer + render + freeze CLIs, QSC format (C)
     ui/                   score-browser panel (Lua, MPL-2.0)
+  apps/terminus/          flagship home shell + DSP Studio — PolyForm Shield 1.0.0 (see apps/terminus/README.md)
+    home.lua              unified home shell launcher
+    dsp/                  DSP Studio (control surface, modulation matrix, mixer/sequencer)
+    patches/              example Faust effects + mini-game patches
 ```
 
 ## Contributing
@@ -362,17 +370,22 @@ By contributing you agree your work ships under the project license (MPL-2.0, in
 
 ## License
 
-This repo has **two independently-licensed parts** — full details in `LICENSING.md`:
+This repo has **four independently-licensed layers** — full details in `LICENSING.md`:
 
-- **The framework** (everything except `audio-stack/`) is the **Mozilla Public License,
-  v. 2.0** (`LICENSE`, SPDX `MPL-2.0`). File-level copyleft: drop it into a larger work
-  alongside proprietary code; changes to MPL-covered files stay MPL. **Using only the
-  framework never involves the GPL below.**
+- **The framework** (everything except `audio-stack/`, `quanta/`, and `apps/terminus/`) is the
+  **Mozilla Public License, v. 2.0** (`LICENSE`, SPDX `MPL-2.0`). File-level copyleft: drop it
+  into a larger work alongside proprietary code; changes to MPL-covered files stay MPL. **Using
+  only the framework never involves the GPL below.**
+- **The `dm.dcf` transport** (`src/ipc/dm_dcf.c`, `audio-stack/bridge/`, `third_party/hydramesh/`)
+  is **LGPL-3.0** (opt-in with `make DCF=1`).
 - **The audio stack** (`audio-stack/`) is **GPLv3-only OR commercial** (dual;
   `audio-stack/LICENSE`). It's a *separate program* (socket/shm IPC), so it doesn't
   relicense the framework.
 - **The Quanta codec** (`quanta/`) is **GPLv3-only OR commercial** (dual;
   `quanta/LICENSE`) — standalone analysis-to-synthesis CLIs; its `ui/` panel is MPL-2.0.
+- **TERMINUS** (`apps/terminus/`) is **PolyForm Shield 1.0.0** (source-available,
+  non-commercial). Commercial use requires a paid license + 3% hardware-revenue share;
+  see `apps/terminus/README.md`.
 
 Third-party components keep their own licenses (see `THIRD_PARTY_LICENSES.md`).
 

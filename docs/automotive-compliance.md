@@ -27,7 +27,7 @@ ships flashable end-vehicle binaries** (see "If you commercialize").
 
 ## Component licensing — the GPLv3-or-commercial audio engine (the key integrator IP decision)
 
-The stack is **two layers, two licenses** (full breakdown in [`../LICENSING.md`](../LICENSING.md)):
+The stack is **multi-layer, multi-license** (full breakdown in [`../LICENSING.md`](../LICENSING.md)):
 
 - **GUI framework + every shell** — this repo root + `shell/` + `auto/`/`gcs/`/`rov/`/`dash/` are
   **MPL-2.0** (`dm.dcf` is LGPL-3.0). Build open or closed on them; they never impose copyleft on
@@ -43,7 +43,7 @@ distributes the engine binary, so a commercial integrator must pick one:
   to recipients and preserve its notices. The MPL app and the GPL engine are **separate programs over
   socket/shm IPC** ("mere aggregation"), so the app is not a derivative and stays MPL — but the GPL
   engine binary you distribute is still bound by GPLv3.
-- **Commercial** ($249 one-time, perpetual per developer — `https://demod.dev/license`): keep the
+- **Commercial** (paid commercial license — email **alh477@proton.me** for terms): keep the
   engine proprietary and distribute binaries without source disclosure. For **physical hardware** (a
   head unit) it's a **3% hardware-revenue share** to DeMoD (100% of any software/plugin revenue is
   yours), tracked by a privacy-friendly SHA256 firmware-hash scheme — no per-device activation,
