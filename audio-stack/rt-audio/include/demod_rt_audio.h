@@ -5,8 +5,9 @@
  * SPDX-License-Identifier: GPL-3.0-only
  *
  * The hard-RT audio callback. Runs on an isolated core (SCHED_FIFO 80),
- * reads parameters from triple-buffered shared memory, processes 64 samples
- * per callback at 48kHz (1.33ms budget), writes to JACK output.
+ * reads parameters from triple-buffered shared memory, processes audio
+ * per callback at the JACK sample rate / buffer size (default target:
+ * 32 samples @ 96kHz = 0.33ms), writes to JACK output.
  *
  * RULES FOR THIS FILE:
  *   - No malloc/free/new/delete in the callback
@@ -43,8 +44,8 @@ extern "C" {
 
 /* ── Configuration ─────────────────────────────────────────────── */
 
-#define DEMOD_RT_SAMPLE_RATE    48000
-#define DEMOD_RT_BUFFER_SIZE    64      /* Target period on hardware: 64 / 48000 = 1.333ms */
+#define DEMOD_RT_SAMPLE_RATE    96000   /* Target sample rate; actual rate read from JACK at runtime */
+#define DEMOD_RT_BUFFER_SIZE    32      /* Target period: 32 / 96000 = 0.33ms (0.67ms buffer n=2) */
 #define DEMOD_RT_MAX_JACK_FRAMES 4096   /* Safe upper bound for variable JACK periods */
 #define DEMOD_RT_CHANNELS       2
 #define DEMOD_RT_MAX_FX_SLOTS   16
@@ -265,6 +266,7 @@ struct DemodRtEngine {
     float           smooth_gain;
     float           transport_bpm;
     jack_nframes_t  jack_buffer_size;
+    jack_nframes_t  jack_sample_rate;
     float           tap_mono[DEMOD_RT_MAX_JACK_FRAMES];
     float           zero_buf[DEMOD_RT_CHANNELS][DEMOD_RT_MAX_JACK_FRAMES];
     float           synth_sum[DEMOD_RT_CHANNELS][DEMOD_RT_MAX_JACK_FRAMES];
@@ -560,7 +562,7 @@ static int demod_rt_process(jack_nframes_t nframes, void *arg) {
      * gain*pan*gate target; solo (when any instrument is soloed) mutes the other
      * instrument buses. Pan is an L/R balance (centre = unity, no 3 dB dip). */
     const float slot_coeff =
-        1.0f - expf(-(float)nframes / (0.01f * (float)DEMOD_RT_SAMPLE_RATE));
+        1.0f - expf(-(float)nframes / (0.01f * (float)eng->jack_sample_rate));
     int any_solo = 0;
     for (int s = 0; s < eng->fx_slot_count; s++) {
         if (eng->fx_slots[s].kind == DEMOD_SLOT_INSTRUMENT && eng->fx_slots[s].solo) {
@@ -699,7 +701,7 @@ static int demod_rt_process(jack_nframes_t nframes, void *arg) {
 
     /* Master: DC block + soft saturation + gain smoothing */
     const float target_gain = eng->master_gain_target;
-    const float smoo_coeff = 1.0f - expf(-1.0f / (0.01f * (float)DEMOD_RT_SAMPLE_RATE));
+    const float smoo_coeff = 1.0f - expf(-1.0f / (0.01f * (float)eng->jack_sample_rate));
 
     for (jack_nframes_t i = 0; i < nframes; i++) {
         float gain = demod_smoo(&eng->smooth_gain, target_gain, smoo_coeff);
@@ -770,7 +772,7 @@ static int demod_rt_process(jack_nframes_t nframes, void *arg) {
     clock_gettime(CLOCK_MONOTONIC_RAW, &end);
     uint64_t elapsed_ns = (uint64_t)(end.tv_sec - eng->callback_start.tv_sec) * 1000000000ULL
                         + (uint64_t)(end.tv_nsec - eng->callback_start.tv_nsec);
-    eng->cpu_load = (float)elapsed_ns / (float)((uint64_t)nframes * 1000000000ULL / DEMOD_RT_SAMPLE_RATE);
+    eng->cpu_load = (float)elapsed_ns / (float)((uint64_t)nframes * 1000000000ULL / eng->jack_sample_rate);
 
     eng->callback_count++;
     atomic_store_explicit(&eng->ipc.heartbeat->rt_timestamp_us,
@@ -887,6 +889,7 @@ static inline int demod_rt_engine_init(DemodRtEngine *eng, int rt_core) {
     jack_set_process_callback(eng->jack_client, demod_rt_process, eng);
     jack_set_xrun_callback(eng->jack_client, demod_rt_xrun, eng);
     eng->jack_buffer_size = jack_get_buffer_size(eng->jack_client);
+    eng->jack_sample_rate = jack_get_sample_rate(eng->jack_client);
 
     /* Register ports */
     eng->port_in_l  = jack_port_register(eng->jack_client, "in_L",
