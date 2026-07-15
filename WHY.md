@@ -213,6 +213,6 @@ This isn't a hobby project anymore. It's a coherent platform with a clear archit
 
 ---
 
-**Organization:** [ALH477](https://github.com/ALH477)  
+**Main Contributor:** [ALH477](https://github.com/ALH477)  
 **Contact:** alh477@proton.me  
 **License:** PolyForm Shield 1.0.0 (source-available, non-commercial)
