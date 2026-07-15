@@ -52,7 +52,7 @@ DCF-Audio and DCF-Game are adapters over the quantum, enabling collaborative aud
 
 ## Why It Matters Together
 
-Individually, each component is impressive. Together, they form a **vertically integrated real-time audio + control + mesh networking stack** that runs entirely locally, with zero cloud dependency, zero GPU dependency, and sub-millisecond determinism.
+Individually, each component is alright. Together, they form a **vertically integrated real-time audio + control + mesh networking stack** that runs entirely locally, with zero cloud dependency, zero GPU dependency, and sub-millisecond determinism.
 
 ### Embedded → Desktop → Cloud
 
