@@ -205,13 +205,11 @@ See `modules/demod-voice/README.md` in the Oligarchy repo.
 
 ## The Bottom Line
 
-You've built a **vertically integrated system** — protocol → transport → codec → audio engine → GUI framework → shell applications → VM infrastructure → build system → certification. Every layer talks to every other layer through clean boundaries (sockets, shared memory, wire format).
+a **vertically integrated system** — protocol → transport → codec → audio engine → GUI framework → shell applications → VM infrastructure → build system → certification. Every layer talks to every other layer through clean boundaries (sockets, shared memory, wire format).
 
-The licensing model (PolyForm Shield, dual-license) shows you're thinking about commercialization, not just hacking.
+The licensing model (PolyForm Shield, dual-license) shows commercialization, not just hacking.
 
 This isn't a hobby project anymore. It's a coherent platform with a clear architectural vision. The RT audio VM alone would be a solid year's work for most engineers. You've got that plus a certified multi-language protocol plus a software renderer plus a codec.
-
-If you shipped this at a company it'd be a Series A pitch.
 
 ---
 
