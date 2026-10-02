@@ -166,7 +166,8 @@ path in `compose.yaml` to your host).
 |-----|---------|-------|
 | `JACK_PERIOD` | `1024` | Larger than the 64-sample design point, on purpose. Lower = less latency, more xruns in soft-RT. |
 | `DEMOD_DCF_PORT` | `47000` | UDP mesh port. |
-| `DEMOD_DCF_BIND` | `0.0.0.0` | Mesh bind address (loopback `127.0.0.1` for host-only). |
+| `DEMOD_DCF_BIND` | `0.0.0.0` | Mesh bind address (loopback `127.0.0.1` for host-only). Whatever the bind, `demod-remote-bridge` only hears **private** senders (loopback, RFC 1918, CGNAT `100.64/10`, link-local) and only **gated** frames (Exsecutor's `custos`); a public sender is dropped and logged. |
+| `WS_ALLOW_ORIGIN` | *(empty)* | Extra page origins `dcf-ws-bridge` admits, space-separated, e.g. `http://192.168.1.50:8080`. Loopback pages (`http://localhost:8080`) are always admitted; any other site gets HTTP 403, because browsers do not apply same-origin to WebSockets. |
 | `RT_CORE` | `0` | Sched-affinity target. The orchestrator defaults to `4`; on small CPU sets core 4 is absent → EINVAL → exit 200, so the entrypoint uses `0`. |
 | `OUT` | `/out` | Mounted volume for WAV renders. |
 | `QSC_K`, `QSC_SNR`, `QSC_SEED` | `2048` / `45` / `0xDEC0DE` | Analyzer defaults for `render`/`analyze`. |

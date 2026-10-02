@@ -54,7 +54,7 @@ static int              g_reasm_init = 0;
 enum { DCF_DISCONNECTED = 0, DCF_CONNECTING = 1, DCF_CONNECTED = 2 };
 enum { DCF_EV_CONNECTED = 1, DCF_EV_DISCONNECTED = 2, DCF_EV_OP_REPLY = 3 };
 /* op-reply status byte — must match demod-remote-bridge's CTL_* / 'R' frame. */
-enum { DCF_OP_OK = 0, DCF_OP_REJECTED = 1, DCF_OP_UNREACHABLE = 2 };
+enum { DCF_OP_OK = 0, DCF_OP_REJECTED = 1, DCF_OP_UNREACHABLE = 2, DCF_OP_REFUSED = 3 };
 
 typedef struct { uint8_t kind; uint8_t status; } dcf_event_t;
 #define DCF_EVENT_RING 32u
@@ -549,7 +549,8 @@ static int l_dcf_status(lua_State *L) {
  *   {kind="connected"}                     — the engine answered (pleasant)
  *   {kind="disconnected"}                  — the link dropped / was closed
  *   {kind="op_reply", ok=bool, status=n}   — an op's result; ok=false is a LOUD
- *       fail. status: 0=ok, 1=rejected by engine, 2=engine unreachable. */
+ *       fail. status: 0=ok, 1=rejected by engine, 2=engine unreachable,
+ *       3=refused by the bridge (not exactly one line; never sent). */
 static int l_dcf_poll_event(lua_State *L) {
     if (g_ev_tail == g_ev_head) { lua_pushnil(L); return 1; }
     dcf_event_t e = g_events[g_ev_tail];
@@ -563,9 +564,11 @@ static int l_dcf_poll_event(lua_State *L) {
     if (e.kind == DCF_EV_OP_REPLY) {
         lua_pushboolean(L, e.status == DCF_OP_OK); lua_setfield(L, -2, "ok");
         lua_pushinteger(L, (lua_Integer)e.status); lua_setfield(L, -2, "status");
-        const char *reason = e.status == DCF_OP_REJECTED    ? "rejected by engine"
+        const char *reason = e.status == DCF_OP_OK          ? "ok"
+                           : e.status == DCF_OP_REJECTED    ? "rejected by engine"
                            : e.status == DCF_OP_UNREACHABLE ? "engine unreachable"
-                                                            : "ok";
+                           : e.status == DCF_OP_REFUSED     ? "refused by bridge (not one op)"
+                                                            : "failed (unknown status)";
         lua_pushstring(L, reason); lua_setfield(L, -2, "reason");
     }
     return 1;

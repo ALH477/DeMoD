@@ -18,7 +18,10 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, nix-appimage, hydramesh }:
-    flake-utils.lib.eachDefaultSystem (system:
+    # riscv64-linux too: ArchibaldOS ships DeMoD Mixer on StarFive JH7110 boards.
+    # The UI (C + SDL2 + Lua) builds there; the Haskell orchestrator may not
+    # (GHC on riscv64), and nothing asks for it on that platform.
+    flake-utils.lib.eachSystem (flake-utils.lib.defaultSystems ++ [ "riscv64-linux" ]) (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
@@ -118,6 +121,29 @@
           };
         });
 
+        # demod-mixer: DeMoD Mixer (apps/mixer, MPL-2.0) on the companion-shell
+        # SDK, run by demod-ui-dcf so DEMOD_MIXER_ENGINE=remote:HOST can reach an
+        # engine elsewhere. What an ArchibaldOS rack unit's kiosk runs.
+        demod-mixer = pkgs.runCommand "demod-mixer-0.1.0" {
+          meta = {
+            description = "Touch-first channel-strip surface for the DeMoD audio engine";
+            license = pkgs.lib.licenses.mpl20;
+            mainProgram = "demod-mixer";
+            platforms = pkgs.lib.platforms.linux;
+          };
+        } ''
+          mkdir -p $out/share/demod-mixer $out/bin
+          cp -r ${./shell} $out/share/demod-mixer/shell
+          cp -r ${./apps/mixer} $out/share/demod-mixer/mixer
+          cat > $out/bin/demod-mixer <<EOF
+          #!${pkgs.runtimeShell}
+          export DEMOD_SHELL_DIR=$out/share/demod-mixer/shell/
+          export DEMOD_MIXER_DIR=$out/share/demod-mixer/mixer/
+          exec ${demod-ui-dcf}/bin/demod-ui $out/share/demod-mixer/mixer/main.lua "\$@"
+          EOF
+          chmod +x $out/bin/demod-mixer
+        '';
+
         # demod-remote-bridge: engine-side DCF <-> local-IPC relay (standalone).
         demod-remote-bridge = pkgs.stdenv.mkDerivation {
           pname = "demod-remote-bridge";
@@ -165,14 +191,20 @@
 
         # dcf-ws-bridge: stateless WebSocket<->UDP relay so the browser (WASM)
         # client can join the plaintext DCF mesh. Vendored LGPL crate (web/bridge,
-        # from HydraMesh); it shuttles opaque datagrams and never parses a frame.
-        # Sits in front of demod-remote-bridge; deploy behind WireGuard.
+        # from HydraMesh). It does not decode, but it GATES: every datagram, both
+        # ways, must be a valid DeModFrame/SuperPack (Exsecutor's custos, emitted
+        # C in web/bridge/custos/), and a browser handshake must come from a
+        # loopback page or an --allow-origin. Sits in front of
+        # demod-remote-bridge; deploy behind WireGuard.
         dcf-ws-bridge = pkgs.rustPlatform.buildRustPackage {
           pname = "dcf-ws-bridge";
           version = "0.1.0";
           src = ./web/bridge;
           cargoLock.lockFile = ./web/bridge/Cargo.lock;
-          doCheck = false;
+          # The checks ARE the gate: tests/gate.rs holds the linked custos unit
+          # to anchors that fail on a broken gate (four upstream mutants do), and
+          # src/origin.rs's tests pin which pages may connect.
+          doCheck = true;
           meta = {
             description = "DCF browser-client WebSocket<->UDP bridge";
             license = pkgs.lib.licenses.lgpl3Only;
@@ -255,7 +287,7 @@
       in {
         packages = {
           default = demod-ui;
-          inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf
+          inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf demod-mixer
                   demod-remote-bridge dcf-ws-bridge quanta
                   demod-dcf-audiocast dcf-ffmpeg dcf-radio docker-runtime;
 
@@ -304,6 +336,14 @@
             export DEMOD_SHELL_DIR=${./shell}/ DEMOD_DASH_DIR=${./dash}/
             exec ${demod-ui-dcf}/bin/demod-ui ${./dash}/main.lua "$@"
           '');
+        };
+        # DeMoD Mixer (apps/mixer): touch-first channel strips for the engine.
+        # Local engine via the control socket, remote via DCF
+        # (DEMOD_MIXER_ENGINE=remote:HOST[:PORT]), else a labelled simulator.
+        # DEMOD_KIOSK=1 runs it fullscreen with no cursor (a rack panel).
+        apps.mixer = {
+          type = "app";
+          program = "${demod-mixer}/bin/demod-mixer";
         };
         apps.gcs = {
           type = "app";

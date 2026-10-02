@@ -37,6 +37,8 @@
 #   JACK_PERIOD          JACK period (default 1024; > the 64-sample design point on purpose)
 #   HTTP_PORT            WASM UI + HLS static server port (default 8080)
 #   WS_PORT              dcf-ws-bridge WebSocket port (default 7000)
+#   WS_ALLOW_ORIGIN      extra page origins dcf-ws-bridge admits, space-separated
+#                        (loopback pages always are; e.g. "http://192.168.1.50:8080")
 #   OUT                  WAV render output dir, host-mounted (default /out)
 #   QSS_MODE             streaming latency preset for qss-encode (live|near|relaxed, default near)
 #   QSS_RATE             streaming atom-rate for qss-encode (default 1200)
@@ -218,7 +220,12 @@ start_bridges() {
     export DEMOD_DCF_BIND="${DEMOD_DCF_BIND:-0.0.0.0}"
     "$BRIDGE" >&2 & register_pid $!
     echo "[entrypoint] demod-remote-bridge:  DCF UDP ${DEMOD_DCF_BIND}:${DEMOD_DCF_PORT:-47000} ↔ control.sock + meters shm"
-    "$WSB" --listen "0.0.0.0:${WS_PORT:-7000}" --udp-bind "0.0.0.0:0" >&2 & register_pid $!
+    # Browsers do not apply same-origin to WebSockets, so dcf-ws-bridge checks
+    # the handshake's Origin: loopback pages (http://localhost:8080, the usual
+    # case here) are admitted, anything else only if named in WS_ALLOW_ORIGIN.
+    local origin_args=() o
+    for o in ${WS_ALLOW_ORIGIN:-}; do origin_args+=(--allow-origin "$o"); done
+    "$WSB" --listen "0.0.0.0:${WS_PORT:-7000}" --udp-bind "0.0.0.0:0" ${origin_args[@]+"${origin_args[@]}"} >&2 & register_pid $!
     echo "[entrypoint] dcf-ws-bridge:        ws://0.0.0.0:${WS_PORT:-7000} ↔ UDP"
 }
 

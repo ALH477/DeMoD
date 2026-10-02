@@ -24,6 +24,26 @@ bash audio-stack/bridge/test/ws_loopback.sh   # browser (WS)  -> bridge -> stub
 `dm.dcf.status()` / `poll_event()` events fire — a `connected` notification and an accepted
 `op_reply` (the stub replies `{"ok":true}`). The **loud** rejection path is Tier 2's job.
 
+### Admission — what the bridges refuse (`gate.sh`, `cargo test` in `web/bridge`)
+
+`gate.sh` builds `demod-remote-bridge` (which links Exsecutor's `custos` gate from
+`web/bridge/custos/`) and drives it with `gate_probe.py`, checking **behaviour**: a false
+HydraModem frame, a bad CRC, version 2 and a valid PING padded to 64 bytes get no answer
+and never become the telemetry peer; a DCF-Text message carrying a newline never reaches
+the control socket and is answered `CTL_REFUSED` (3), while a one-line op still goes
+through. Its last leg sends a valid PING from `203.0.113.7` (TEST-NET-3) inside an
+unprivileged user+network namespace and requires silence; without `unshare -rn` and `ip`
+that leg prints `SKIP`, never nothing.
+
+Against the bridge before the gate, the probe fails 7 of 11: one spoofed 17-byte
+datagram pulled ~230 meters datagrams back to its sender in 0.4 s, and a smuggled
+`load_fx` line reached the control socket.
+
+```bash
+bash audio-stack/bridge/test/gate.sh
+(cd web/bridge && cargo test)        # custos anchors + the Origin rule for dcf-ws-bridge
+```
+
 ## Tier 2 — the whole stack, against the REAL engine (`engine_e2e.sh`)
 
 `engine_e2e.sh` proves the browser path drives the **actual** engine end-to-end:
@@ -60,6 +80,7 @@ best-effort gate. The fixed shm names (`/demod-*`, `/dev/shm/demod-rt-meters`) m
 engine instance at a time.
 
 ## Files
+- `gate.sh` / `gate_probe.py` — the engine bridge's admission rules, measured from outside.
 - `loopback.sh` / `ws_loopback.sh` — Tier-1 transport proofs (UDP / WebSocket).
 - `engine_e2e.sh` — Tier-2 real-engine proof.
 - `stub_engine.c` — the Tier-1 fixture (fake control socket + meters shm).

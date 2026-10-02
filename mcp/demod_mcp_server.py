@@ -267,10 +267,17 @@ def tool_engine_op(a):
     op = a.get("op", "")
     if op not in ENGINE_OPS:
         return err("op %r not allowed; choose one of: %s" % (op, ", ".join(sorted(ENGINE_OPS))))
-    req = {"v": 1, "id": "op", "op": op}
     params = a.get("params") or {}
-    if isinstance(params, dict):
-        req.update(params)
+    if not isinstance(params, dict):
+        return err("params must be an object")
+    # The allowlist is checked on `op` above, so nothing in `params` may name
+    # the op (or the envelope) again: {"op":"ping","params":{"op":"<anything>"}}
+    # used to pass the check as "ping" and reach the engine as <anything>.
+    reserved = sorted(k for k in params if k in ("op", "v", "id"))
+    if reserved:
+        return err("params may not set %s; the op is the `op` argument" % ", ".join(reserved))
+    req = dict(params)
+    req.update({"v": 1, "id": "op", "op": op})
     try:
         r = control_request(control_path(a.get("socket")), req)
     except Exception as ex:  # noqa: BLE001

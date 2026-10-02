@@ -563,33 +563,13 @@ static int l_gamepad_map(lua_State *L) {
 
 /* ── Orchestrator IPC (demod5): param bus read + control socket write ──── */
 
-/* dm.params_read() -> table | nil  (nil when no orchestrator is present) */
-static int l_params_read(lua_State *L) {
-    DemodParamSnapshot s;
-    if (!demod_params_read(&s)) { lua_pushnil(L); return 1; }
-
-    lua_newtable(L);
-    lua_pushnumber(L, s.detected_pitch_hz); lua_setfield(L, -2, "pitch_hz");
-    lua_pushnumber(L, s.pitch_confidence);  lua_setfield(L, -2, "pitch_conf");
-    lua_pushinteger(L, s.midi_note);        lua_setfield(L, -2, "midi_note");
-    lua_pushnumber(L, s.bpm);               lua_setfield(L, -2, "bpm");
-    lua_pushinteger(L, s.beat_count);       lua_setfield(L, -2, "beat_count");
-    lua_pushinteger(L, s.fx_bypass_mask);   lua_setfield(L, -2, "bypass_mask");
-    lua_pushnumber(L, s.synth_gain);        lua_setfield(L, -2, "synth_gain");
-
-    lua_newtable(L);                        /* fx_params = {16 floats} */
-    for (int i = 0; i < 16; i++) {
-        lua_pushnumber(L, s.fx_params[i]);
-        lua_rawseti(L, -2, i + 1);
-    }
-    lua_setfield(L, -2, "fx_params");
-
-    /* Live readback straight from demod-rt (per-slot RMS + post-chain scope), if it
-     * is publishing. Folded into the same table so dsp.meters().levels and
-     * dsp.scope() light up with no extra plumbing: levels = {16},
-     * scope = { L = {N}, R = {N}, n = N }. */
+/* Fold demod-rt's live readback (per-slot RMS + mixer state + post-chain
+ * scope) into the table on top of the stack. Returns 0 when demod-rt is not
+ * publishing. Shared by dm.params_read() and dm.meters_read(). */
+static int push_rt_meters(lua_State *L) {
     DemodRtMeters meters;
-    if (demod_rt_meters_read(&meters)) {
+    if (!demod_rt_meters_read(&meters)) return 0;
+    {
         lua_newtable(L);                    /* levels = {16 floats} */
         for (int i = 0; i < DEMOD_RT_METERS_SLOTS; i++) {
             lua_pushnumber(L, meters.fx_levels[i]);
@@ -652,6 +632,45 @@ static int l_params_read(lua_State *L) {
     return 1;
 }
 
+/* dm.params_read() -> table | nil  (nil when no orchestrator is present) */
+static int l_params_read(lua_State *L) {
+    DemodParamSnapshot s;
+    if (!demod_params_read(&s)) { lua_pushnil(L); return 1; }
+
+    lua_newtable(L);
+    lua_pushnumber(L, s.detected_pitch_hz); lua_setfield(L, -2, "pitch_hz");
+    lua_pushnumber(L, s.pitch_confidence);  lua_setfield(L, -2, "pitch_conf");
+    lua_pushinteger(L, s.midi_note);        lua_setfield(L, -2, "midi_note");
+    lua_pushnumber(L, s.bpm);               lua_setfield(L, -2, "bpm");
+    lua_pushinteger(L, s.beat_count);       lua_setfield(L, -2, "beat_count");
+    lua_pushinteger(L, s.fx_bypass_mask);   lua_setfield(L, -2, "bypass_mask");
+    lua_pushnumber(L, s.synth_gain);        lua_setfield(L, -2, "synth_gain");
+
+    lua_newtable(L);                        /* fx_params = {16 floats} */
+    for (int i = 0; i < 16; i++) {
+        lua_pushnumber(L, s.fx_params[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "fx_params");
+
+    /* Live readback straight from demod-rt (per-slot RMS + post-chain scope), if it
+     * is publishing. Folded into the same table so dsp.meters().levels and
+     * dsp.scope() light up with no extra plumbing: levels = {16},
+     * scope = { L = {N}, R = {N}, n = N }. */
+    (void)push_rt_meters(L);
+    return 1;
+}
+
+/* dm.meters_read() -> table | nil — demod-rt's segment alone: levels,
+ * levels_l/r, gain, pan, mute_mask, solo_mask, scope. dm.params_read() returns
+ * nil whenever the orchestrator's params segment is absent, which hid this
+ * readback from anything that needs only the mixer state. */
+static int l_meters_read(lua_State *L) {
+    lua_newtable(L);
+    if (!push_rt_meters(L)) { lua_pop(L, 1); lua_pushnil(L); }
+    return 1;
+}
+
 /* dm.ctl_set_param(slot, idx, value) -> bool */
 static int l_ctl_set_param(lua_State *L) {
     int slot = (int)luaL_checkinteger(L, 1);
@@ -676,6 +695,16 @@ static int l_ctl_bpm(lua_State *L) {
 static int l_ctl_gain(lua_State *L) {
     lua_pushboolean(L, demod_control_set_gain((float)luaL_checknumber(L, 1)) == 0);
     return 1;
+}
+/* dm.ctl_request(jsonline) -> ok(bool), reply(string)
+ * The orchestrator's reply line, for ops whose answer matters (get_health,
+ * list_slots). reply is "" when the socket is absent or the engine is silent. */
+static int l_ctl_request(lua_State *L) {
+    static char reply[4096];
+    int rc = demod_control_request(luaL_checkstring(L, 1), reply, sizeof(reply));
+    lua_pushboolean(L, rc == 0);
+    lua_pushstring(L, reply);
+    return 2;
 }
 /* dm.ctl(jsonline) -> bool  (raw escape hatch) */
 static int l_ctl_raw(lua_State *L) {
@@ -872,6 +901,18 @@ static int l_mouse_x(lua_State *L) {
 
 static int l_mouse_y(lua_State *L) {
     lua_pushinteger(L, get_app(L)->mouse_y);
+    return 1;
+}
+/* dm.mouse_down() -> bool: the primary button, or the first finger on a
+ * touchscreen, is held. With dm.mouse_x/y this is a press-and-drag, which the
+ * invisible-button touch overlay (shell/touch.lua, taps only) cannot express. */
+static int l_mouse_down(lua_State *L) {
+    lua_pushboolean(L, get_app(L)->mouse_down);
+    return 1;
+}
+/* dm.kiosk() -> bool: launched as a kiosk panel (DEMOD_KIOSK=1). */
+static int l_kiosk(lua_State *L) {
+    lua_pushboolean(L, get_app(L)->config.kiosk);
     return 1;
 }
 
@@ -1428,11 +1469,13 @@ static const luaL_Reg dm_funcs[] = {
     {"streamdb_close",  l_sdb_close},
     /* orchestrator IPC (demod5) */
     {"params_read",   l_params_read},
+    {"meters_read",   l_meters_read},
     {"ctl_set_param", l_ctl_set_param},
     {"ctl_bypass",    l_ctl_bypass},
     {"ctl_bpm",       l_ctl_bpm},
     {"ctl_gain",      l_ctl_gain},
     {"ctl",           l_ctl_raw},
+    {"ctl_request",   l_ctl_request},
     {"local_available", l_local_available},
 #ifdef DEMOD_LOCAL_DSP
     {"local_init",        l_local_init},
@@ -1453,6 +1496,8 @@ static const luaL_Reg dm_funcs[] = {
     {"dt",           l_dt},
     {"mouse_x",      l_mouse_x},
     {"mouse_y",      l_mouse_y},
+    {"mouse_down",   l_mouse_down},
+    {"kiosk",        l_kiosk},
     {"width",        l_width},
     {"height",       l_height},
     {NULL, NULL}

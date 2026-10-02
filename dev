@@ -4,7 +4,7 @@
 #   ./dev build [dcf]              build demod-ui (dcf = with dm.dcf)
 #   ./dev run   <target> [args]    run auto|dash|gcs|rov|mcp or an examples/ name
 #   ./dev shot  <target> [frame] [out.png]   headless screenshot -> a PNG
-#   ./dev test  [name|all]         font|loopback|ws_loopback|engine_e2e|obd2|smoke
+#   ./dev test  [name|all]         font|gate|ws_gate|loopback|ws_loopback|engine_e2e|obd2|smoke
 #   ./dev check                    everything CI runs + obd2 (the pre-push gate)
 #   ./dev fmt | lint               stylua + clang-format (advisory)
 # Zero deps; auto-enters `nix develop` when the toolchain isn't on PATH.
@@ -18,7 +18,7 @@ usage() {
   build [dcf]                    build ./demod-ui (dcf adds the dm.dcf transport)
   run   <target> [args]          run auto|dash|gcs|rov|mcp or an examples/ name
   shot  <target> [frame] [out]   headless render -> a PNG   (DEMOD_SURFACE=n for shells)
-  test  <name|all>               font|loopback|ws_loopback|engine_e2e|obd2|smoke
+  test  <name|all>               font|gate|ws_gate|loopback|ws_loopback|engine_e2e|obd2|smoke
   check [--fast]                 build + all tests (pre-push gate; --fast skips engine_e2e)
   fmt | lint [--all]             stylua + clang-format (advisory; default = your changed files)
   compiledb                      write compile_commands.json (for clangd)
@@ -48,7 +48,7 @@ fi
 say() { printf '\033[36m[dev]\033[0m %s\n' "$*"; }
 die() { printf '\033[31m[dev] %s\033[0m\n' "$*" >&2; exit 1; }
 
-LUA_DIRS=(shell auto dash gcs rov examples)
+LUA_DIRS=(shell auto dash gcs rov apps/mixer examples)
 
 build() { # build [dcf]
   if [ "${1:-}" = dcf ]; then say "make DCF=1"; make DCF=1; else say "make"; make; fi
@@ -58,6 +58,7 @@ resolve_script() { # -> the .lua path for a target
   local t="$1"
   case "$t" in
     auto | dash | gcs | rov) echo "$REPO/$t/main.lua" ;;
+    mixer) echo "$REPO/apps/mixer/main.lua" ;;
     *)
       if [ -f "$t" ]; then echo "$t"
       elif [ -f "$REPO/examples/$t.lua" ]; then echo "$REPO/examples/$t.lua"
@@ -73,6 +74,7 @@ app_env() { # export the env a shell target needs
     dash) export DEMOD_DASH_DIR="$REPO/dash/" ;;
     gcs) export DEMOD_GCS_DIR="$REPO/gcs/" ;;
     rov) export DEMOD_ROV_DIR="$REPO/rov/" ;;
+    mixer) export DEMOD_MIXER_DIR="$REPO/apps/mixer/" ;;
   esac
 }
 
@@ -82,7 +84,7 @@ cmd_run() {
   if [ "$t" = mcp ]; then exec python3 "$REPO/mcp/demod_mcp_server.py" "$@"; fi
   build dcf >/dev/null || die "build failed"
   local s; s="$(resolve_script "$t")"
-  case "$t" in auto | dash | gcs | rov) app_env "$t" ;; esac
+  case "$t" in auto | dash | gcs | rov | mixer) app_env "$t" ;; esac
   say "run $s"
   exec "$REPO/demod-ui" "$s" "$@"
 }
@@ -119,7 +121,7 @@ cmd_shot() {
   [ -n "$out" ] || out="$(basename "${t%.lua}").png"
   build dcf >/dev/null || die "build failed"
   local s; s="$(resolve_script "$t")"
-  case "$t" in auto | dash | gcs | rov) app_env "$t" ;; esac
+  case "$t" in auto | dash | gcs | rov | mixer) app_env "$t" ;; esac
   local ppm; ppm="$(mktemp)"
   say "render $s (frame $frame)"
   SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy DEMOD_SHOT="$ppm" DEMOD_SHOT_FRAME="$frame" \
@@ -181,21 +183,25 @@ xr_test() {
 run_one_test() {
   case "$1" in
     font) make test ;;
+    gate) bash audio-stack/bridge/test/gate.sh ;;
+    ws_gate) (cd web/bridge && cargo test --quiet) ;;
     loopback) bash audio-stack/bridge/test/loopback.sh ;;
     ws_loopback) bash audio-stack/bridge/test/ws_loopback.sh ;;
     engine_e2e) bash audio-stack/bridge/test/engine_e2e.sh ;;
     obd2) bash auto/test/obd2_selftest.sh ;;
+    ctl_wire) bash tests/ctl_wire.sh ;;
+    mixer) lua apps/mixer/test/taper_test.lua && bash apps/mixer/test/mixer_e2e.sh ;;
     smoke) smoke_examples ;;
     ar) ar_test ;;
     xr) xr_test ;;
-    *) die "unknown test '$1' (font|loopback|ws_loopback|engine_e2e|obd2|smoke|ar|xr|all)" ;;
+    *) die "unknown test '$1' (font|gate|ws_gate|loopback|ws_loopback|engine_e2e|obd2|ctl_wire|mixer|smoke|ar|xr|all)" ;;
   esac
 }
 
 cmd_test() {
   local n="${1:-all}"
   if [ "$n" = all ]; then
-    for t in font smoke ar xr obd2 loopback ws_loopback engine_e2e; do
+    for t in font smoke ar xr obd2 ctl_wire mixer gate ws_gate loopback ws_loopback engine_e2e; do
       say "test $t"; run_one_test "$t" || die "test '$t' failed"
     done
     say "all tests passed"
@@ -281,6 +287,10 @@ cmd_check() {
   chk "ar passthrough (ARHUD=1)" ar_test
   chk "xr sink seam (XR=1 stub)" xr_test
   chk "obd2 reader" bash auto/test/obd2_selftest.sh
+  chk "control ops on the wire (op key)" bash tests/ctl_wire.sh
+  chk "mixer: gestures -> engine -> readback" bash -c 'lua apps/mixer/test/taper_test.lua && bash apps/mixer/test/mixer_e2e.sh'
+  chk "dcf bridge admission (custos)" bash audio-stack/bridge/test/gate.sh
+  chk "dcf-ws-bridge gate + origin" bash -c 'cd web/bridge && cargo test --quiet'
   chk "dcf loopback (UDP)" bash audio-stack/bridge/test/loopback.sh
   chk "dcf loopback (WebSocket)" bash audio-stack/bridge/test/ws_loopback.sh
   [ $fast = 1 ] || chk "real-engine e2e (skips w/o JACK)" bash audio-stack/bridge/test/engine_e2e.sh

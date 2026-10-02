@@ -85,6 +85,14 @@ codec headers it links:
   client (vendored from HydraMesh; its Rust deps are fetched at build time via `Cargo.lock`,
   not committed). The wasm build itself (`src/ipc/dm_dcf.c`'s `__EMSCRIPTEN__` branch) is the
   same LGPL-3.0 file.
+- `web/bridge/custos/custos.gen.c` — the datagram gate both bridges link: C **emitted by the
+  Exsecutor compiler** (`exsc --emitte c`) from Exsecutor's `examples/custos`. It is compiler
+  output, which Exsecutor's `LICENSE.EXCEPTION` Exception A lets the recipient propagate under
+  terms of their choosing, so it ships here under LGPL-3.0-only with the bridge. This is the
+  reading Punctim records for the same file. **No Exsecutor source is copied in** — the three
+  `.exsc` inputs stay upstream under GPL-3.0-or-later, and editing the gate *here* would need
+  the copyright holder's explicit grant on them, as Punctim's `exsecutor/` carries. Provenance
+  (command, commit, sha256) in `web/bridge/custos/PROVENANCE.md`.
 - `third_party/hydramesh/*.h` — vendored header-only DCF codecs (LGPL-3.0, see that dir's README).
 
 LGPL-3.0 links cleanly into both the MPL framework (file-level) and the GPLv3 engine

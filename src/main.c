@@ -8,6 +8,7 @@
 #include "demod/app.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main(int argc, char *argv[]) {
     const char *script = (argc > 1) ? argv[1] : "main.lua";
@@ -27,14 +28,23 @@ int main(int argc, char *argv[]) {
     if (we && *we && atoi(we) > 0) win_w = atoi(we);
     if (he && *he && atoi(he) > 0) win_h = atoi(he);
 
+    /* DEMOD_KIOSK=1: the panel IS the machine (a touchscreen rack unit launched
+       by the OS, not a window someone opened) — fullscreen, no pointer cursor.
+       DEMOD_FULLSCREEN=1: fullscreen alone. */
+    const char *ke = getenv("DEMOD_KIOSK");
+    const char *fe = getenv("DEMOD_FULLSCREEN");
+    bool kiosk = ke && strcmp(ke, "1") == 0;
+    bool fullscreen = kiosk || (fe && strcmp(fe, "1") == 0);
+
     DmAppConfig config = {
         .title      = "DeMoD",
         .width      = win_w,
         .height     = win_h,
         .resizable  = true,
-        .fullscreen = false,
+        .fullscreen = fullscreen,
         .target_fps = 60,
         .lua_entry  = script,
+        .kiosk      = kiosk,
     };
 
     DmApp *app = dm_app_create(config);

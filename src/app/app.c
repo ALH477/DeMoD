@@ -218,6 +218,11 @@ static DmEvent translate_sdl_event(SDL_Event *sdl, DmApp *app) {
         e.mouse.x      = (int)(sdl->button.x * msx);
         e.mouse.y      = (int)(sdl->button.y * msy);
         e.mouse.button = sdl->button.button;
+        /* A tap can arrive with no motion before it; keep the position current
+           so a press-and-drag read through dm.mouse_x/y starts where it landed. */
+        app->mouse_x = e.mouse.x;
+        app->mouse_y = e.mouse.y;
+        if (sdl->button.button == SDL_BUTTON_LEFT) app->mouse_down = true;
         break;
 
     case SDL_MOUSEBUTTONUP:
@@ -225,6 +230,9 @@ static DmEvent translate_sdl_event(SDL_Event *sdl, DmApp *app) {
         e.mouse.x      = (int)(sdl->button.x * msx);
         e.mouse.y      = (int)(sdl->button.y * msy);
         e.mouse.button = sdl->button.button;
+        app->mouse_x = e.mouse.x;
+        app->mouse_y = e.mouse.y;
+        if (sdl->button.button == SDL_BUTTON_LEFT) app->mouse_down = false;
         break;
 
     case SDL_MOUSEWHEEL:
@@ -290,6 +298,12 @@ DmApp *dm_app_create(DmAppConfig config) {
         return NULL;
     }
 
+    if (config.kiosk) {
+        /* A fullscreen panel under a kiosk compositor (cage) must not iconify
+           when focus moves, or a stray notification blanks the console. */
+        SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+    }
+
     Uint32 flags = SDL_WINDOW_SHOWN;
     if (config.resizable)  flags |= SDL_WINDOW_RESIZABLE;
     if (config.fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
@@ -325,6 +339,16 @@ DmApp *dm_app_create(DmAppConfig config) {
     /* Window is native; the framebuffer/texture may be capped below it. */
     app->window_w = app->config.width;
     app->window_h = app->config.height;
+    if (app->config.fullscreen) {
+        /* Fullscreen takes the display's size, not the requested one. Without
+           this the framebuffer (and the pointer scaling in translate_sdl_event)
+           stays at the requested size until a resize event happens to arrive,
+           so taps on an 800x480 panel land in the wrong place. */
+        int ww = 0, wh = 0;
+        SDL_GetWindowSize(app->window, &ww, &wh);
+        if (ww > 0 && wh > 0) { app->window_w = ww; app->window_h = wh; }
+    }
+    if (app->config.kiosk) SDL_ShowCursor(SDL_DISABLE);
     int fb_w, fb_h;
     dm_logical_dims(app->window_w, app->window_h, app->max_render_h, &fb_w, &fb_h);
 

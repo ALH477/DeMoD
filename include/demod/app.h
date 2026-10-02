@@ -51,6 +51,8 @@ typedef struct {
                                       0 = resolve from env DEMOD_MAX_RENDER_HEIGHT or
                                       the built-in default. Keeps high-DPI fill cheap. */
     const char *lua_entry;      /* path to main Lua script (NULL = C-only) */
+    bool        kiosk;          /* fullscreen, no pointer cursor, no minimise on focus
+                                   loss: a panel that IS the machine (DEMOD_KIOSK=1) */
 } DmAppConfig;
 
 struct DmApp {
@@ -74,6 +76,8 @@ struct DmApp {
     double          dt;             /* delta time in seconds */
     double          time;           /* total elapsed time */
     int             mouse_x, mouse_y;   /* in framebuffer (logical) space */
+    bool            mouse_down;         /* primary button (or the first finger, via
+                                           SDL's touch-to-mouse emulation) is held */
     int             window_w, window_h; /* true native window size (>= fb when capped) */
     int             max_render_h;       /* resolved render-height cap (0 = none) */
 
