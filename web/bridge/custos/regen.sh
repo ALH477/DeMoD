@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: LGPL-3.0-only
 # web/bridge/custos/regen.sh -- re-emit custos.gen.c from an Exsecutor
 # checkout and compare it with the committed copy (or overwrite it, --write).
 #
