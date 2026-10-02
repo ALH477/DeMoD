@@ -105,6 +105,8 @@ jobs:
         run: vcpkg install sdl2 lua
       - name: Configure + build (DEMOD_CLIENT)
         run: |
+          # Quoted: PowerShell passes a bare -D...=$env:X argument through
+          # literally, so CMake was handed the text "$env:VCPKG_INSTALLATION_ROOT".
           cmake -S . -B build -DDEMOD_DCF=ON `
-            -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           cmake --build build --config Release
