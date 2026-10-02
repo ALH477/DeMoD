@@ -41,4 +41,6 @@ compile_commands.json
 
 # bridge build artifacts (Makefile targets)
 audio-stack/bridge/demod-remote-bridge
+audio-stack/bridge/custos.o
+web/bridge/target/
 audio-stack/bridge/demod-dcf-audiocast

@@ -11,6 +11,14 @@ LDLIBS := -lm
 
 BIN := demod-remote-bridge
 
+# The datagram gate: Exsecutor's custos, emitted as C (see
+# ../../web/bridge/custos/PROVENANCE.md). One copy serves both relays: the
+# browser's dcf-ws-bridge compiles it from build.rs, this bridge from here.
+# Its own flags, not $(CFLAGS): the emitted prologue #errors on -ffast-math
+# (Exsecutor spec 5.4), and every unit carries helpers it does not call.
+CUSTOS        := ../../web/bridge/custos/custos.gen.c
+CUSTOS_CFLAGS ?= -std=c11 -O2 -fno-fast-math -Wno-unused-function
+
 # demod-dcf-audiocast is a JACK+Opus client (extra deps), so it is a SEPARATE
 # target — the default `all` keeps demod-remote-bridge dependency-free (libc+libm).
 # Build it explicitly: `make demod-dcf-audiocast` (needs pkg-config jack + opus).
@@ -25,12 +33,15 @@ CAST_LIBS  := $(shell $(PKG_CONFIG) --libs jack opus 2>/dev/null) -lm
 .PHONY: all clean audiocast
 all: $(BIN)
 
-$(BIN): demod-remote-bridge.c
-	$(CC) $(CFLAGS) $(INCS) -o $@ $< $(LDLIBS)
+custos.o: $(CUSTOS)
+	$(CC) $(CUSTOS_CFLAGS) -c -o $@ $<
+
+$(BIN): demod-remote-bridge.c custos.o
+	$(CC) $(CFLAGS) $(INCS) -o $@ demod-remote-bridge.c custos.o $(LDLIBS)
 
 audiocast: demod-dcf-audiocast
 demod-dcf-audiocast: demod-dcf-audiocast.c
 	$(CC) $(CFLAGS) $(CAST_INCS) -o $@ $< $(CAST_LIBS)
 
 clean:
-	rm -f $(BIN) demod-dcf-audiocast
+	rm -f $(BIN) custos.o demod-dcf-audiocast

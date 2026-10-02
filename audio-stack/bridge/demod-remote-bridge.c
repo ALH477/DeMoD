@@ -3,7 +3,8 @@
  * demod-remote-bridge.c — engine-side UDP bridge for the DCF remote transport.
  *
  * Lets a *remote* UI (dm.dcf) drive this host's engine over UDP. It is the peer
- * of src/ipc/dm_dcf.c:
+ * of src/ipc/dm_dcf.c. Every datagram passes two checks before anything else
+ * happens to it (see "Admission" below); then:
  *   • CTRL 'PING'  -> reply CTRL 'PONG' to the sender (rtt probe).
  *   • DCF-Text CTRL/DATA frames -> reassemble a JSON control op, then write it as
  *     one line to the local orchestrator control socket ($DEMOD_CONTROL_SOCK).
@@ -11,9 +12,33 @@
  *     mirroring src/ipc/demod_rt_meters.c), encode a codec_id-16 meters block, and
  *     dcf_audio_packetize it back to the last peer seen.
  *
- * Links libc only. No engine code is modified; the control-socket connect/write
- * idiom is copied (not shared) from src/ipc/demod_control.c and the seqlock read
- * from src/ipc/demod_rt_meters.c.
+ * Admission. The wire is plaintext and unauthenticated by design (export
+ * compliance; deploy behind WireGuard), and this process turns what it hears
+ * into engine control ops, so what it will listen to is decided in code, not
+ * left to the firewall:
+ *   1. Source. Only loopback, RFC 1918, CGNAT (100.64/10, where WireGuard and
+ *      Tailscale peers live) and link-local senders are heard. Anything else is
+ *      dropped and counted. Oligarchy's P2P substituter restricts its peers the
+ *      same way, for the same reason.
+ *   2. The gate. The datagram must be what the bare DCF dialect carries: a valid
+ *      17-byte DeModFrame (sync 0xD3, version nibble 1, CRC-16/CCITT-FALSE) or a
+ *      valid 32-byte SuperPack. The decision is Exsecutor's certified `custos`
+ *      (web/bridge/custos/custos.gen.c, see its PROVENANCE.md), the same unit the
+ *      browser's dcf-ws-bridge links, so both relays refuse the same bytes.
+ *      Punctim's dcf.bridge gates the same way: a frame that fails is not
+ *      relayed, delivered or learned from.
+ * Only a datagram that passes both may become the telemetry peer. Before this,
+ * the peer was taken from any 17 bytes from anyone, so one spoofed datagram
+ * pointed the ~30 Hz meters stream at an address of the sender's choosing.
+ *
+ * One message is one op. A reassembled DCF-Text message is written to the
+ * control socket as ONE line, so a message carrying a newline (or CR, or NUL)
+ * would be several ops behind one reply; it is refused and answered with
+ * status CTL_REFUSED instead.
+ *
+ * Links libc, libm and the custos unit. No engine code is modified; the
+ * control-socket connect/write idiom is copied (not shared) from
+ * src/ipc/demod_control.c and the seqlock read from src/ipc/demod_rt_meters.c.
  *
  * Copyright (C) 2025-2026 DeMoD LLC.
  * Licensed under the GNU Lesser General Public License v3.0 only; see LICENSE.
@@ -27,6 +52,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <math.h>
 #include <netinet/in.h>
 #include <signal.h>
@@ -60,6 +86,7 @@ static const char *control_path(void) {
 #define CTL_OK        0   /* orchestrator applied the op (or replied ok / silent) */
 #define CTL_REJECTED  1   /* orchestrator replied {"ok":false}                    */
 #define CTL_UNREACH   2   /* couldn't reach/write the control socket              */
+#define CTL_REFUSED   3   /* the bridge refused it: not exactly one line (never sent) */
 
 static int control_send_line(const char *json, size_t len) {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -106,6 +133,68 @@ static int control_send_line(const char *json, size_t len) {
     }
     close(fd);
     return rc;
+}
+
+/* ── admission: the source policy and the custos gate ──────────────────── */
+
+/* web/bridge/custos/custos.gen.c — Exsecutor's examples/custos, emitted as one
+ * C11 library unit with the entry-23 DeModFrame codec. The prototype is the one
+ * that unit defines (upstream's custos.h pins it). d must point at 32 readable
+ * bytes; bytes at and past n are not read. 0 = admitted; 1 bad sync, 2 bad
+ * version, 3 bad CRC, 4 32 bytes that are not a SuperPack, 5 a SuperPack core
+ * not at version 1, 6 neither 17 nor 32 bytes. */
+uint64_t exs_admitte(unsigned char *d, uint64_t n);
+
+/* The unit's one import. Reached only by a bounds or overflow trap inside the
+ * gate, which is a defect: a gate that has failed must not keep admitting, and
+ * the prototype is _Noreturn, so the bridge stops (fail closed). */
+_Noreturn void exsrt_abortus(unsigned kind);
+_Noreturn void exsrt_abortus(unsigned kind) {
+    fprintf(stderr, "[bridge] custos gate trapped (exsrt_abortus %u); stopping\n", kind);
+    abort();
+}
+
+/* Private senders only: loopback 127/8, RFC 1918 (10/8, 172.16/12, 192.168/16),
+ * CGNAT 100.64/10 (WireGuard / Tailscale overlays) and link-local 169.254/16. */
+static int src_is_private(const struct sockaddr_in *a) {
+    uint32_t ip = ntohl(a->sin_addr.s_addr);
+    return (ip >> 24) == 127u
+        || (ip >> 24) == 10u
+        || (ip >> 20) == 0xAC1u      /* 172.16.0.0/12  */
+        || (ip >> 16) == 0xC0A8u     /* 192.168.0.0/16 */
+        || (ip >> 22) == 0x191u      /* 100.64.0.0/10  */
+        || (ip >> 16) == 0xA9FEu;    /* 169.254.0.0/16 */
+}
+
+/* A control op is one line: no LF, no CR, no NUL anywhere in it. */
+static int op_is_one_line(const uint8_t *p, size_t n) {
+    if (n == 0) return 0;
+    for (size_t i = 0; i < n; i++)
+        if (p[i] == '\n' || p[i] == '\r' || p[i] == '\0') return 0;
+    return 1;
+}
+
+/* Refusal counters, by reason. Logged loudly but bounded: the 1st, 2nd, 4th,
+ * 8th ... refusal of each reason prints, so a flood cannot fill the journal
+ * and a single stray datagram is never silent. */
+enum { REF_SOURCE, REF_SYNC, REF_VERSION, REF_CRC, REF_NOT_SUPERPACK,
+       REF_CORE_VERSION, REF_LENGTH, REF_GATE_UNKNOWN, REF_SUPERPACK, REF_OP, REF_N };
+static const char *const ref_name[REF_N] = {
+    "non-private source", "bad sync", "bad version", "bad CRC",
+    "32 bytes but not a SuperPack", "SuperPack core not version 1",
+    "length neither 17 nor 32", "unknown gate verdict",
+    "valid SuperPack (this bridge speaks single frames only)",
+    "control op that is not exactly one line",
+};
+static uint64_t g_refused[REF_N];
+
+static void refuse(int why, const struct sockaddr_in *src, ssize_t len) {
+    uint64_t c = ++g_refused[why];
+    if ((c & (c - 1u)) != 0) return;            /* log powers of two only */
+    char ip[INET_ADDRSTRLEN] = "?";
+    if (src) inet_ntop(AF_INET, &src->sin_addr, ip, sizeof(ip));
+    fprintf(stderr, "[bridge] refused %s from %s:%u (%zd B) — %" PRIu64 " so far\n",
+            ref_name[why], ip, src ? (unsigned)ntohs(src->sin_port) : 0u, len, c);
 }
 
 /* ── meters shm reader — seqlock, mirroring demod_rt_meters.c ──────────── */
@@ -244,20 +333,41 @@ int main(void) {
     long last_tele = now_ms();
 
     for (;;) {
-        /* Drain any received frames (non-blocking). */
+        /* Drain any received datagrams (non-blocking). MSG_TRUNC makes n the
+         * datagram's true length, so an oversized one is judged at its real
+         * size rather than silently cut to a window that might pass. */
         for (;;) {
-            uint8_t rb[DCF_FRAME_SIZE];
+            unsigned char rb[32];
             struct sockaddr_in src;
             socklen_t sl = sizeof(src);
-            ssize_t n = recvfrom(sock, rb, sizeof(rb), MSG_DONTWAIT,
+            memset(rb, 0, sizeof(rb));
+            memset(&src, 0, sizeof(src));
+            ssize_t n = recvfrom(sock, rb, sizeof(rb), MSG_DONTWAIT | MSG_TRUNC,
                                  (struct sockaddr *)&src, &sl);
-            if (n != (ssize_t)DCF_FRAME_SIZE) break;
+            if (n < 0) break;                       /* drained (EAGAIN) or error */
+
+            /* Admission, in order; nothing below runs for a refused datagram,
+             * and in particular it never becomes the telemetry peer. */
+            if (sl != sizeof(src) || src.sin_family != AF_INET || !src_is_private(&src)) {
+                refuse(REF_SOURCE, &src, n);
+                continue;
+            }
+            uint64_t verdict = exs_admitte(rb, (uint64_t)n);
+            if (verdict != 0) {
+                refuse(verdict <= 6 ? (int)verdict : REF_GATE_UNKNOWN, &src, n);
+                continue;
+            }
+            if (n != (ssize_t)DCF_FRAME_SIZE) {     /* admitted, but a SuperPack */
+                refuse(REF_SUPERPACK, &src, n);
+                continue;
+            }
+
             memcpy(&peer, &src, sizeof(src));
             peer_len = sl;
             have_peer = 1;
 
             dcf_frame_t d;
-            if (!dcf_frame_decode(rb, &d)) continue;
+            if (!dcf_frame_decode(rb, &d)) continue;  /* unreachable after the gate */
 
             /* CTRL 'PING' -> 'PONG' back to the sender. */
             if (d.type == DCF_TYPE_CTRL &&
@@ -276,10 +386,16 @@ int main(void) {
             /* DCF-Text (DATA) fragments -> reassemble a JSON op. */
             dcf_text_packet_t msg;
             if (dcf_text_reasm_push(&reasm, rb, &msg) == DCF_TEXT_REASM_MESSAGE) {
-                int st = control_send_line((const char *)msg.payload, msg.payload_len);
+                int st;
+                if (!op_is_one_line(msg.payload, msg.payload_len)) {
+                    refuse(REF_OP, &src, (ssize_t)msg.payload_len);
+                    st = CTL_REFUSED;
+                } else {
+                    st = control_send_line((const char *)msg.payload, msg.payload_len);
+                }
                 if (st == CTL_OK)
                     fprintf(stderr, "[bridge] op -> control.sock (%u B)\n", msg.payload_len);
-                else
+                else if (st != CTL_REFUSED)
                     fprintf(stderr, "[bridge] op %s\n",
                             st == CTL_REJECTED ? "rejected by engine" : "dropped (control.sock unavailable)");
                 /* Reply the result to the UI as a CTRL 'R' frame so dm.dcf can

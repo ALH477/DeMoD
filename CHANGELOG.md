@@ -6,6 +6,26 @@ versioning while pre-1.0.
 
 ## [Unreleased]
 
+### Security
+- **Both DCF relays now gate every datagram with Exsecutor's certified `custos`.**
+  `web/bridge` is re-vendored from Punctim (`b206dcb`): `dcf-ws-bridge` links
+  `web/bridge/custos/custos.gen.c` (C emitted by `exsc`, sha256 `35a0cd84…`, provenance in
+  `PROVENANCE.md`) and admits only a valid 17-byte DeModFrame or 32-byte SuperPack in either
+  direction, and checks the WebSocket `Origin` (loopback pages and non-browser clients only,
+  others via `--allow-origin`; docker: `WS_ALLOW_ORIGIN`). `demod-remote-bridge` links the
+  same unit, hears only private senders (loopback, RFC 1918, CGNAT, link-local), learns its
+  telemetry peer only from an admitted frame, judges a datagram at its real length
+  (`MSG_TRUNC`), and refuses a control message that is not exactly one line (new reply status
+  `3`, surfaced by `dm.dcf.poll_event()` as "refused by bridge"). Before this, one spoofed
+  17-byte datagram redirected the ~30 Hz meters stream to an address of the sender's choosing
+  (~230 datagrams back in 0.4 s), and a newline in one message smuggled a second op past the
+  reply. New gates: `./dev test gate` (`audio-stack/bridge/test/gate.sh`, 13 behavioural
+  checks; the pre-gate bridge fails 7 of 11) and `./dev test ws_gate` (`cargo test`, also
+  run by `nix build .#dcf-ws-bridge`, now `doCheck = true`).
+- **MCP `demod_engine_op`:** `params` may no longer carry `op`/`v`/`id`. It used to override the
+  allowlisted op after the check. Latent today — every op the orchestrator dispatches is on
+  the list — but the list would have stopped being enforced the day one was added.
+
 ### Added
 - **TERMINUS application layer** (`apps/terminus/`, PolyForm Shield 1.0.0): a unified home shell
   + DSP Studio with a full control surface, modulation matrix, and DAW-style mixer/sequencer.

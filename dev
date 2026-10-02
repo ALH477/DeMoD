@@ -4,7 +4,7 @@
 #   ./dev build [dcf]              build demod-ui (dcf = with dm.dcf)
 #   ./dev run   <target> [args]    run auto|dash|gcs|rov|mcp or an examples/ name
 #   ./dev shot  <target> [frame] [out.png]   headless screenshot -> a PNG
-#   ./dev test  [name|all]         font|loopback|ws_loopback|engine_e2e|obd2|smoke
+#   ./dev test  [name|all]         font|gate|ws_gate|loopback|ws_loopback|engine_e2e|obd2|smoke
 #   ./dev check                    everything CI runs + obd2 (the pre-push gate)
 #   ./dev fmt | lint               stylua + clang-format (advisory)
 # Zero deps; auto-enters `nix develop` when the toolchain isn't on PATH.
@@ -18,7 +18,7 @@ usage() {
   build [dcf]                    build ./demod-ui (dcf adds the dm.dcf transport)
   run   <target> [args]          run auto|dash|gcs|rov|mcp or an examples/ name
   shot  <target> [frame] [out]   headless render -> a PNG   (DEMOD_SURFACE=n for shells)
-  test  <name|all>               font|loopback|ws_loopback|engine_e2e|obd2|smoke
+  test  <name|all>               font|gate|ws_gate|loopback|ws_loopback|engine_e2e|obd2|smoke
   check [--fast]                 build + all tests (pre-push gate; --fast skips engine_e2e)
   fmt | lint [--all]             stylua + clang-format (advisory; default = your changed files)
   compiledb                      write compile_commands.json (for clangd)
@@ -181,6 +181,8 @@ xr_test() {
 run_one_test() {
   case "$1" in
     font) make test ;;
+    gate) bash audio-stack/bridge/test/gate.sh ;;
+    ws_gate) (cd web/bridge && cargo test --quiet) ;;
     loopback) bash audio-stack/bridge/test/loopback.sh ;;
     ws_loopback) bash audio-stack/bridge/test/ws_loopback.sh ;;
     engine_e2e) bash audio-stack/bridge/test/engine_e2e.sh ;;
@@ -188,14 +190,14 @@ run_one_test() {
     smoke) smoke_examples ;;
     ar) ar_test ;;
     xr) xr_test ;;
-    *) die "unknown test '$1' (font|loopback|ws_loopback|engine_e2e|obd2|smoke|ar|xr|all)" ;;
+    *) die "unknown test '$1' (font|gate|ws_gate|loopback|ws_loopback|engine_e2e|obd2|smoke|ar|xr|all)" ;;
   esac
 }
 
 cmd_test() {
   local n="${1:-all}"
   if [ "$n" = all ]; then
-    for t in font smoke ar xr obd2 loopback ws_loopback engine_e2e; do
+    for t in font smoke ar xr obd2 gate ws_gate loopback ws_loopback engine_e2e; do
       say "test $t"; run_one_test "$t" || die "test '$t' failed"
     done
     say "all tests passed"
@@ -281,6 +283,8 @@ cmd_check() {
   chk "ar passthrough (ARHUD=1)" ar_test
   chk "xr sink seam (XR=1 stub)" xr_test
   chk "obd2 reader" bash auto/test/obd2_selftest.sh
+  chk "dcf bridge admission (custos)" bash audio-stack/bridge/test/gate.sh
+  chk "dcf-ws-bridge gate + origin" bash -c 'cd web/bridge && cargo test --quiet'
   chk "dcf loopback (UDP)" bash audio-stack/bridge/test/loopback.sh
   chk "dcf loopback (WebSocket)" bash audio-stack/bridge/test/ws_loopback.sh
   [ $fast = 1 ] || chk "real-engine e2e (skips w/o JACK)" bash audio-stack/bridge/test/engine_e2e.sh

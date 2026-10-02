@@ -27,6 +27,17 @@ jobs:
       - name: UTF-8 / font tests
         run: nix develop --command make test
 
+      - name: DCF bridge admission (Exsecutor custos gate, private sources, one op per message)
+        # The source-policy leg runs in an unprivileged user+net namespace;
+        # Ubuntu 24.04 restricts those through AppArmor unless this is lifted.
+        # Without it gate.sh still runs and reports that leg as SKIP.
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bash audio-stack/bridge/test/gate.sh
+
+      - name: dcf-ws-bridge gate + Origin check (custos linked from web/bridge/custos)
+        run: cd web/bridge && cargo test
+
       - name: DCF remote-transport loopback (bridge <-> dm.dcf over UDP)
         run: nix develop --command bash audio-stack/bridge/test/loopback.sh
 

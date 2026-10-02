@@ -23,8 +23,12 @@ pixel-identical to the native window. Two ways to use it:
 ```
 
 The wire is the unchanged **17-byte DeModFrame** — the browser just carries it over a
-binary WebSocket instead of a UDP datagram. `dcf-ws-bridge` is a stateless relay that
-never parses a frame; the DCF codec runs in the wasm exactly as it does natively.
+binary WebSocket instead of a UDP datagram. `dcf-ws-bridge` is a stateless relay; the DCF
+codec runs in the wasm exactly as it does natively. The relay does not decode, but it
+**gates**: every datagram, in both directions, must be a valid 17-byte DeModFrame or 32-byte
+SuperPack (Exsecutor's certified `custos`, compiled in from `web/bridge/custos/`), and
+anything else is dropped and counted. `demod-remote-bridge` applies the same unit on its
+side, hears only private senders, and refuses a control message that is not exactly one line.
 
 ## Build the wasm (Emscripten)
 
@@ -59,9 +63,21 @@ On the Linux box/VM run the engine + the two bridges (all build from this flake)
 ```bash
 nix build .#demod-orchestrator .#demod-rt .#demod-remote-bridge .#dcf-ws-bridge
 # start the engine + orchestrator (see audio-stack/README.md), then:
-DEMOD_DCF_PORT=47000 ./result/bin/demod-remote-bridge          # UDP endpoint
-./result/bin/dcf-ws-bridge --listen 0.0.0.0:7000               # WS <-> UDP relay
+DEMOD_DCF_PORT=47000 DEMOD_DCF_BIND=0.0.0.0 ./result/bin/demod-remote-bridge   # UDP endpoint
+./result/bin/dcf-ws-bridge --listen 0.0.0.0:7000 \
+    --allow-origin http://192.168.1.50:8080                     # WS <-> UDP relay
 ```
+
+**`--allow-origin` is required whenever the page is not served from loopback.** Browsers do
+not apply the same-origin rule to WebSockets, so without the check any website a user
+visits could open the bridge and send through it. `dcf-ws-bridge` admits a handshake with
+no `Origin` (a non-browser client), from an `http(s)://localhost|127.0.0.1|[::1]` page, or
+from an origin you name; everything else gets HTTP 403. `--allow-origin null` admits
+`file://` pages — and sandboxed iframes on *any* site, which is why it is not the default.
+
+The engine bridge only hears senders on loopback, RFC 1918, CGNAT (`100.64/10`) or
+link-local addresses. That is the WireGuard / Tailscale / LAN case by construction; a
+public source is dropped and logged rather than left to the firewall.
 
 Point the tab at the bridge — the client reads `window.DEMOD_WS_BRIDGE`, defaulting to
 `ws(s)://<page-host>/dcf`, or pass `?bridge=`:
