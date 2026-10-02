@@ -12,6 +12,7 @@
 #ifndef DEMOD_IPC_H
 #define DEMOD_IPC_H
 
+#include <stddef.h>
 #include "demod/demod_triple_buf.h"
 #include "demod/demod_rt_meters.h"
 
@@ -32,6 +33,10 @@ void demod_rt_meters_close(void);
 /* Send a single JSON command line to the control socket (connect/send/close).
  * Returns 0 on success, -1 if the socket is unavailable or the write failed. */
 int  demod_control_send_raw(const char *json_line);
+
+/* Same, and copy the orchestrator's reply line (no newline, NUL-terminated,
+ * truncated to cap-1) into reply. reply may be NULL. Same return value. */
+int  demod_control_request(const char *json_line, char *reply, size_t cap);
 
 /* Typed convenience wrappers matching the orchestrator's Control.hs ops. */
 int  demod_control_set_param(int slot, int idx, float value);

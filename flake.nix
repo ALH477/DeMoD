@@ -118,6 +118,29 @@
           };
         });
 
+        # demod-mixer: DeMoD Mixer (apps/mixer, MPL-2.0) on the companion-shell
+        # SDK, run by demod-ui-dcf so DEMOD_MIXER_ENGINE=remote:HOST can reach an
+        # engine elsewhere. What an ArchibaldOS rack unit's kiosk runs.
+        demod-mixer = pkgs.runCommand "demod-mixer-0.1.0" {
+          meta = {
+            description = "Touch-first channel-strip surface for the DeMoD audio engine";
+            license = pkgs.lib.licenses.mpl20;
+            mainProgram = "demod-mixer";
+            platforms = pkgs.lib.platforms.linux;
+          };
+        } ''
+          mkdir -p $out/share/demod-mixer $out/bin
+          cp -r ${./shell} $out/share/demod-mixer/shell
+          cp -r ${./apps/mixer} $out/share/demod-mixer/mixer
+          cat > $out/bin/demod-mixer <<EOF
+          #!${pkgs.runtimeShell}
+          export DEMOD_SHELL_DIR=$out/share/demod-mixer/shell/
+          export DEMOD_MIXER_DIR=$out/share/demod-mixer/mixer/
+          exec ${demod-ui-dcf}/bin/demod-ui $out/share/demod-mixer/mixer/main.lua "\$@"
+          EOF
+          chmod +x $out/bin/demod-mixer
+        '';
+
         # demod-remote-bridge: engine-side DCF <-> local-IPC relay (standalone).
         demod-remote-bridge = pkgs.stdenv.mkDerivation {
           pname = "demod-remote-bridge";
@@ -261,7 +284,7 @@
       in {
         packages = {
           default = demod-ui;
-          inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf
+          inherit demod-ui demod-rt demod-orchestrator demod-ui-dcf demod-mixer
                   demod-remote-bridge dcf-ws-bridge quanta
                   demod-dcf-audiocast dcf-ffmpeg dcf-radio docker-runtime;
 
@@ -310,6 +333,14 @@
             export DEMOD_SHELL_DIR=${./shell}/ DEMOD_DASH_DIR=${./dash}/
             exec ${demod-ui-dcf}/bin/demod-ui ${./dash}/main.lua "$@"
           '');
+        };
+        # DeMoD Mixer (apps/mixer): touch-first channel strips for the engine.
+        # Local engine via the control socket, remote via DCF
+        # (DEMOD_MIXER_ENGINE=remote:HOST[:PORT]), else a labelled simulator.
+        # DEMOD_KIOSK=1 runs it fullscreen with no cursor (a rack panel).
+        apps.mixer = {
+          type = "app";
+          program = "${demod-mixer}/bin/demod-mixer";
         };
         apps.gcs = {
           type = "app";

@@ -35,16 +35,20 @@ PATH — so a fresh `git clone` + `./dev check` works if you have Nix. Without N
 
 ## Running from a working tree
 
-`nix run .#{auto,dash,gcs,rov,quanta,mcp,terminus,check}` runs the store-built versions. To run from your **checkout**,
+`nix run .#{auto,dash,gcs,rov,mixer,quanta,mcp,terminus,check}` runs the store-built versions. To run from your **checkout**,
 use `./dev run <target>` (it builds `DCF=1` and sets the env below). Or set the env yourself:
 
 | Var | For | Default |
 |-----|-----|---------|
 | `DEMOD_SHELL_DIR` | shell apps — the SDK dir | derived from the app dir |
-| `DEMOD_{AUTO,DASH,GCS,ROV}_DIR` | the app's own dir | the `main.lua` script dir |
+| `DEMOD_{AUTO,DASH,GCS,ROV,MIXER}_DIR` | the app's own dir | the `main.lua` script dir |
 | `DEMOD_SURFACE=n` | deep-link a surface (for `./dev shot`) | 1 |
 | `DEMOD_DCF_HOST` / `_PORT` | attach a live DCF mesh | unset → simulator |
 | `DEMOD_SHOT` / `_FRAME` / `_QUIT` | headless framebuffer dump (PPM) | — / 90 / 1 |
+| `DEMOD_KIOSK=1` | a panel that IS the machine: fullscreen, no cursor, no minimise on focus loss | off |
+| `DEMOD_FULLSCREEN=1` | fullscreen alone (desktop size, not `DEMOD_WIN`) | off |
+| `DEMOD_CONTROL_SOCK` | the orchestrator's control socket for `dm.ctl*` | `/run/demod/control.sock` |
+| `DEMOD_MIXER_ENGINE` | mixer: `local`, `remote:HOST[:PORT]` or `sim` | local if it answers, else sim |
 | `DEMOD_CAMERA_DEV` / `_TEST` / `_FRAME` | auto rear camera (see `docs/automotive-compliance.md`) | off unless set |
 | `DEMOD_OBD_DEV`, `DEMOD_MEDIA_DIR`, `DEMOD_REVERSE` | auto OBD / media / reverse | see `auto/README.md` |
 
@@ -55,7 +59,9 @@ There's no single "test suite" file — tests are focused scripts, all run by `.
 (the DCF transport + real-engine E2E; `engine_e2e` self-skips without JACK/RT), `cd quanta && make test`
 (the codec null + M0 tonal gates; needs `faust` + numpy, both in the devShell), `auto/test/obd2_selftest.sh`
 (mock ELM327 → OBD reader), and a headless render smoke over the examples. `./dev check` mirrors
-`.github/workflows/ci.yml` exactly, plus obd2. *(A `busted` Lua unit layer is a noted future gap.)*
+`.github/workflows/ci.yml` exactly, plus obd2, `tests/ctl_wire.sh` (the `dm.ctl_*` helpers against
+`tests/fake_orchestrator.py`, which applies Control.hs's op rules) and the mixer's taper test + e2e
+(`apps/mixer/test/`). *(A `busted` Lua unit layer is a noted future gap.)*
 
 ## Editor / LSP
 

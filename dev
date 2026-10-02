@@ -48,7 +48,7 @@ fi
 say() { printf '\033[36m[dev]\033[0m %s\n' "$*"; }
 die() { printf '\033[31m[dev] %s\033[0m\n' "$*" >&2; exit 1; }
 
-LUA_DIRS=(shell auto dash gcs rov examples)
+LUA_DIRS=(shell auto dash gcs rov apps/mixer examples)
 
 build() { # build [dcf]
   if [ "${1:-}" = dcf ]; then say "make DCF=1"; make DCF=1; else say "make"; make; fi
@@ -58,6 +58,7 @@ resolve_script() { # -> the .lua path for a target
   local t="$1"
   case "$t" in
     auto | dash | gcs | rov) echo "$REPO/$t/main.lua" ;;
+    mixer) echo "$REPO/apps/mixer/main.lua" ;;
     *)
       if [ -f "$t" ]; then echo "$t"
       elif [ -f "$REPO/examples/$t.lua" ]; then echo "$REPO/examples/$t.lua"
@@ -73,6 +74,7 @@ app_env() { # export the env a shell target needs
     dash) export DEMOD_DASH_DIR="$REPO/dash/" ;;
     gcs) export DEMOD_GCS_DIR="$REPO/gcs/" ;;
     rov) export DEMOD_ROV_DIR="$REPO/rov/" ;;
+    mixer) export DEMOD_MIXER_DIR="$REPO/apps/mixer/" ;;
   esac
 }
 
@@ -82,7 +84,7 @@ cmd_run() {
   if [ "$t" = mcp ]; then exec python3 "$REPO/mcp/demod_mcp_server.py" "$@"; fi
   build dcf >/dev/null || die "build failed"
   local s; s="$(resolve_script "$t")"
-  case "$t" in auto | dash | gcs | rov) app_env "$t" ;; esac
+  case "$t" in auto | dash | gcs | rov | mixer) app_env "$t" ;; esac
   say "run $s"
   exec "$REPO/demod-ui" "$s" "$@"
 }
@@ -119,7 +121,7 @@ cmd_shot() {
   [ -n "$out" ] || out="$(basename "${t%.lua}").png"
   build dcf >/dev/null || die "build failed"
   local s; s="$(resolve_script "$t")"
-  case "$t" in auto | dash | gcs | rov) app_env "$t" ;; esac
+  case "$t" in auto | dash | gcs | rov | mixer) app_env "$t" ;; esac
   local ppm; ppm="$(mktemp)"
   say "render $s (frame $frame)"
   SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy DEMOD_SHOT="$ppm" DEMOD_SHOT_FRAME="$frame" \
@@ -187,17 +189,19 @@ run_one_test() {
     ws_loopback) bash audio-stack/bridge/test/ws_loopback.sh ;;
     engine_e2e) bash audio-stack/bridge/test/engine_e2e.sh ;;
     obd2) bash auto/test/obd2_selftest.sh ;;
+    ctl_wire) bash tests/ctl_wire.sh ;;
+    mixer) lua apps/mixer/test/taper_test.lua && bash apps/mixer/test/mixer_e2e.sh ;;
     smoke) smoke_examples ;;
     ar) ar_test ;;
     xr) xr_test ;;
-    *) die "unknown test '$1' (font|gate|ws_gate|loopback|ws_loopback|engine_e2e|obd2|smoke|ar|xr|all)" ;;
+    *) die "unknown test '$1' (font|gate|ws_gate|loopback|ws_loopback|engine_e2e|obd2|ctl_wire|mixer|smoke|ar|xr|all)" ;;
   esac
 }
 
 cmd_test() {
   local n="${1:-all}"
   if [ "$n" = all ]; then
-    for t in font smoke ar xr obd2 gate ws_gate loopback ws_loopback engine_e2e; do
+    for t in font smoke ar xr obd2 ctl_wire mixer gate ws_gate loopback ws_loopback engine_e2e; do
       say "test $t"; run_one_test "$t" || die "test '$t' failed"
     done
     say "all tests passed"
@@ -283,6 +287,8 @@ cmd_check() {
   chk "ar passthrough (ARHUD=1)" ar_test
   chk "xr sink seam (XR=1 stub)" xr_test
   chk "obd2 reader" bash auto/test/obd2_selftest.sh
+  chk "control ops on the wire (op key)" bash tests/ctl_wire.sh
+  chk "mixer: gestures -> engine -> readback" bash -c 'lua apps/mixer/test/taper_test.lua && bash apps/mixer/test/mixer_e2e.sh'
   chk "dcf bridge admission (custos)" bash audio-stack/bridge/test/gate.sh
   chk "dcf-ws-bridge gate + origin" bash -c 'cd web/bridge && cargo test --quiet'
   chk "dcf loopback (UDP)" bash audio-stack/bridge/test/loopback.sh

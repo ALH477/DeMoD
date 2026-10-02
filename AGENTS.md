@@ -12,7 +12,9 @@ A **pure software-rendered GUI framework** (C11 + SDL2 + Lua, **no GPU** — the
 - **Framework** — `src/`, `include/`, `examples/`. Apps are Lua scripts against the `dm.*` API.
 - **Companion-shell SDK + apps** — `shell/` (surface manager + telemetry provider + theme + touch),
   and the shells `auto/` (car head unit), `dash/` (telemetry dashboard), `gcs/` (drone GCS), `rov/`
-  (AUV/ROV console). Each = its own theme + provider + surfaces on the SDK.
+  (AUV/ROV console). Each = its own theme + provider + surfaces on the SDK. `apps/mixer/` (DeMoD
+  Mixer, MPL) is the touch-first channel-strip surface for the engine — the kiosk app ArchibaldOS
+  runs on a rack unit's touchscreen.
 - **Audio stack** — `audio-stack/` (`demod-rt` engine + Haskell orchestrator + IPC). Driven over a
   control socket; **separate program**, not linked into the UI.
 - **Quanta codec** — `quanta/` (analysis-to-synthesis: matching-pursuit analyzer → `.qsc` score →
@@ -123,6 +125,13 @@ The shell's motion-lockout + non-preemptible rear-camera are safety features —
 - Headless test recipe: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy DEMOD_SHOT=x.ppm DEMOD_SHOT_FRAME=n
   ./demod-ui <script>` — or just `./dev shot`.
 - `engine_e2e` / real-engine tests need JACK + RT privileges; they **self-skip** otherwise.
+- The orchestrator dispatches on `"op"` (or `"verb"`). The `dm.ctl_*` helpers sent `"cmd"` until
+  2026-10 and every one was refused with "missing op"; `tests/ctl_wire.sh` pins it now. Build raw ops
+  as `{"v":1,"id":…,"op":…}` and use `dm.ctl_request` when you need the reply.
+- `dm.params_read()` is nil whenever the orchestrator's params segment is absent, which hides
+  demod-rt's meters too. Read the mixer state with `dm.meters_read()`.
+- Touch: the shell's zone overlay reports **taps** only. A fader needs press-drag-release:
+  `dm.mouse_down()` + `dm.mouse_x/y` (the first finger, via SDL's touch-to-mouse emulation).
 
 ## Deeper references
 

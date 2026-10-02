@@ -114,6 +114,10 @@ function dm.root() end
 function dm.mouse_x() end
 ---@return integer
 function dm.mouse_y() end
+---@return boolean down primary button, or the first finger on a touchscreen, is held
+function dm.mouse_down() end
+---@return boolean kiosk launched as a kiosk panel (DEMOD_KIOSK=1)
+function dm.kiosk() end
 ---@param s string @return integer
 function dm.utf8_len(s) end
 
@@ -150,6 +154,11 @@ function dm.ctl_set_param(slot, idx, value) end
 function dm.ctl_bypass(slot, on) end
 function dm.ctl_bpm(bpm) end
 function dm.ctl_gain(gain) end
+---@param json string one JSON op line ({"op":...})
+---@return boolean ok, string reply the orchestrator's reply line ("" if none)
+function dm.ctl_request(json) end
+---@return table|nil meters demod-rt's readback (gain, pan, levels_l/r, mute_mask, solo_mask, scope), nil if not publishing
+function dm.meters_read() end
 ---@param json_line string @return boolean
 function dm.ctl(json_line) end
 
