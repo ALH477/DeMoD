@@ -18,7 +18,10 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, nix-appimage, hydramesh }:
-    flake-utils.lib.eachDefaultSystem (system:
+    # riscv64-linux too: ArchibaldOS ships DeMoD Mixer on StarFive JH7110 boards.
+    # The UI (C + SDL2 + Lua) builds there; the Haskell orchestrator may not
+    # (GHC on riscv64), and nothing asks for it on that platform.
+    flake-utils.lib.eachSystem (flake-utils.lib.defaultSystems ++ [ "riscv64-linux" ]) (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
