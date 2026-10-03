@@ -147,6 +147,12 @@ if(SDL2_FOUND)
   set(DEMOD_SDL2_INCLUDE ${SDL2_INCLUDE_DIRS})
   if(TARGET SDL2::SDL2)
     set(DEMOD_SDL2_LIBS SDL2::SDL2)
+    # On Windows SDL.h renames main() to SDL_main(), and SDL2main supplies the
+    # real entry point that calls it; without it MSVC's link fails with an
+    # unresolved `main`. vcpkg's SDL2 usage note says the same.
+    if(WIN32 AND TARGET SDL2::SDL2main)
+      list(PREPEND DEMOD_SDL2_LIBS SDL2::SDL2main)
+    endif()
   else()
     set(DEMOD_SDL2_LIBS ${SDL2_LIBRARIES})
   endif()
