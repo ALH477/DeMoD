@@ -147,6 +147,12 @@ if(SDL2_FOUND)
   set(DEMOD_SDL2_INCLUDE ${SDL2_INCLUDE_DIRS})
   if(TARGET SDL2::SDL2)
     set(DEMOD_SDL2_LIBS SDL2::SDL2)
+    # On Windows SDL.h renames main() to SDL_main(), and SDL2main supplies the
+    # real entry point that calls it; without it MSVC's link fails with an
+    # unresolved `main`. vcpkg's SDL2 usage note says the same.
+    if(WIN32 AND TARGET SDL2::SDL2main)
+      list(PREPEND DEMOD_SDL2_LIBS SDL2::SDL2main)
+    endif()
   else()
     set(DEMOD_SDL2_LIBS ${SDL2_LIBRARIES})
   endif()
@@ -256,6 +262,12 @@ if(NOT WIN32)
 endif()
 if(WIN32)
   target_link_libraries(demod-ui PRIVATE ws2_32)  # Winsock for dm_dcf.c
+endif()
+if(MSVC)
+  # <stdatomic.h> (demod_rt_meters.h, demod_triple_buf.h) needs MSVC's C11
+  # atomics switch on top of /std:c11 (CMAKE_C_STANDARD above); without it
+  # vcruntime_c11_stdatomic.h stops with "C atomic support is not enabled".
+  target_compile_options(demod-ui PRIVATE /experimental:c11atomics)
 endif()
 
 install(TARGETS demod-ui RUNTIME DESTINATION bin)
