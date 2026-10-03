@@ -2,7 +2,7 @@
 --[[ ============================================================================
   patches/demod-theremin/fx.lua -- descriptor for THEREMIN (see demod_theremin.dsp). New DeMoD voice;
   params match the COMPILED Faust control bus order (tools/sync_params.py).
-  (c) 2026 DeMoD LLC. Private.
+  (c) 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

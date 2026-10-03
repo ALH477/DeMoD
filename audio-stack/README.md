@@ -20,8 +20,11 @@ Unix socket and shared memory, with no build dependency in either direction. A U
 ## License
 
 This directory is **dual-licensed: GPLv3-only OR commercial** — see `LICENSE` (the
-"DEMOD DUAL LICENSE") and the repository-root `LICENSING.md`. This is a different
-license from the MPL-2.0 framework at the repository root; each part keeps its own.
+"DEMOD DUAL LICENSE") and the repository-root `LICENSING.md`. The GPLv3 option is open to
+anyone who accepts its obligations, commercial use included; the commercial licence ($249
+one-time per developer, plus 3% of hardware device sales revenue) is for anyone who does not.
+`bridge/` is the LGPL-3.0-only DCF relay, except `bridge/demod-dcf-audiocast.c`. This is a
+different license from the MPL-2.0 framework at the repository root; each part keeps its own.
 
 ## Build
 

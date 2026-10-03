@@ -8,7 +8,7 @@
 
       ~/demod-ui/demod-ui patches/demod-rhythm/selftest.lua
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local floor = math.floor
 

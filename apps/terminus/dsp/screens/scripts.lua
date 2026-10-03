@@ -7,7 +7,7 @@
   selected script; an inline action menu covers RECORD / LOOP / ASSIGN trigger / DELETE.
   Triggers (MIDI note/CC, footswitch, gamepad "Script N", or on-screen) all fire the
   same script. Scripts persist to DEMOD_SCRIPT_DIR and are hand-editable.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "SCRIPTS", short = "SCR" }

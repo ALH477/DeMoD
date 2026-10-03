@@ -16,7 +16,7 @@
   pure music logic lives in instruments.lua + track.lua (+ LEARN's theory.lua);
   this file is UI + game state. Shared helpers come from ../games/gamekit.lua.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"
 local K = dofile(HERE .. "../games/gamekit.lua")

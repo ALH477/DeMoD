@@ -13,7 +13,7 @@
   Run:  ./demod-ui dsp/dsp_studio.lua
   Headless: SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 3 ./demod-ui dsp/dsp_studio.lua
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 -- ── locate our own directory so we can dofile sibling modules ───────────

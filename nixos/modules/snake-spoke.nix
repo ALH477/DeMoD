@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only OR Commercial
+# SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
 # NixOS module for DCF-Snake spoke node deployment (RISC-V)
 #
 # Deploys demod-rt (spoke mode) + snake_source with proper RT scheduling,

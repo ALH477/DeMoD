@@ -35,7 +35,7 @@
   Pure / dm-free (like the old bindings.lua) so it stays busted-testable: MIDI emission
   goes through an injected emit_fn (attach_midi), normally midi.send.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local M = {}

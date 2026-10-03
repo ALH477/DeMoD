@@ -8,7 +8,7 @@
   order, which is the `idx` used by set_param.
 
   Each entry: { label, min, max, init, step, unit }
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local function p(label, min, max, init, step, unit)

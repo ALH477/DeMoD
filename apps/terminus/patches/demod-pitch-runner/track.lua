@@ -8,7 +8,7 @@
   accuracy (cents). In PRACTICE mode cents is nil (the played pitch is correct by
   construction) so judging is timing-only.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"
 local INST = dofile(HERE .. "instruments.lua")

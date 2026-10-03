@@ -18,7 +18,8 @@
 //    • fi.dcblocker on output
 //
 //  Compile: faust2jack -poly -nvoices 8 demod_modal.dsp
-//  SPDX-License-Identifier: DCSL  ·  © 2025 DeMoD LLC  —  ALH477
+//  SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+//  © 2025 DeMoD LLC
 // ─────────────────────────────────────────────────────────────────
 
 declare name        "DeMoD Modal Perc";

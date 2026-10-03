@@ -9,7 +9,7 @@
   are takes; activate = record-toggle on row 1, play/stop on a take; hold = delete.
   Recording needs the audio engine (disabled on the stub with a hint); playback only
   needs the take files, so it works everywhere.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "RECORD", short = "REC" }

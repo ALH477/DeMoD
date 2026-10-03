@@ -2,7 +2,7 @@
 //  DeMoD Vox — Power Armor Voice FX
 //  Faust DSP  ·  LV2 / LADSPA for Carla on Linux
 //
-//  Copyright (c) 2026 ALH477
+//  Copyright (c) 2026 DeMoD LLC
 //  SPDX-License-Identifier: MIT
 //  https://github.com/ALH477/DeMoD-Vox
 //

@@ -7,7 +7,7 @@
   encoder, or by sweeping the VALUE row here. State lives in ctx.modulation
   (modulation.lua); routes write through ctx.bindings (control_surface) so each routed
   param moves AND emits MIDI out, echo-safe. Persisted via ctx.save_bindings.
-  © 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  © 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "MACROS", short = "MAC" }

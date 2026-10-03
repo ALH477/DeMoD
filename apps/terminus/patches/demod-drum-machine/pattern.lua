@@ -15,7 +15,7 @@
     per step  '.'=off, '1'..'3'=on at velocity level lo/med/hi
     per voice 16 chars, voices joined by '/', banks joined by '|'.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local floor, max, min = math.floor, math.max, math.min
 

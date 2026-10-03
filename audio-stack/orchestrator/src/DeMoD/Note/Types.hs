@@ -4,7 +4,7 @@ Description : Internal MIDI-note event currency for DeMoD synth routing
 Copyright   : (c) DeMoD LLC, 2025-2026
 License     : GPL-3.0-only
 
-Portions adapted from DeMoD-Note (Copyright 2026, MIT). MIT is compatible
+Portions adapted from DeMoD-Note (Copyright 2026 DeMoD LLC, MIT). MIT is compatible
 with this repository's GPL-3.0-only license.
 -}
 

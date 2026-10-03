@@ -6,7 +6,7 @@
   whole bank serializes to one string for gamekit's K.save (which only persists
   top-level scalars):  per pad "i\tid\tname\tgain", pads joined by "\n".
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local P = {}
 P.__index = P

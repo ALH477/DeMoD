@@ -11,7 +11,7 @@
 # The source-policy leg needs a non-private address bound on this machine. It
 # runs inside an unprivileged user+network namespace when `unshare -rn` and `ip`
 # are available, and is otherwise reported as SKIP — never silently omitted.
-# Copyright (C) 2026 DeMoD LLC. LGPL-3.0-only; see LICENSE.
+# Copyright (C) 2026 DeMoD LLC. LGPL-3.0-only; see LICENSES/LGPL-3.0-only.txt.
 set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

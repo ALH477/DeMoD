@@ -5,7 +5,7 @@
 # Builds demod-ui (DCF=1) + the bridge + the stub engine, wires them over
 # localhost UDP, and runs examples/dcf_loopback.lua against them. Prints PASS
 # and exits 0 only if ping + control-op delivery + telemetry decode all succeed.
-# Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSE.
+# Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSES/LGPL-3.0-only.txt.
 set -u
 
 # Repo root = two levels above this script's dir (audio-stack/bridge/test).

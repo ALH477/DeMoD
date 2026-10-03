@@ -9,7 +9,7 @@
   Run:  ./demod-ui home.lua
   Headless test: SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 3 ./demod-ui home.lua
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 -- ── Palette ─────────────────────────────────────────────────────────────

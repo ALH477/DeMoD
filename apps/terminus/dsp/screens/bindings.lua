@@ -7,7 +7,7 @@
   PERF (performance) param, cycle its MODE, CLEAR it, or GRAB the encoder. The quick
   "assign" also lives on the PARAMS screen (wet/X); this is the review/edit/clear view.
   All state lives in ctx.bindings (dsp/bindings.lua), persisted via ctx.save_bindings.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "BINDINGS", short = "BND" }

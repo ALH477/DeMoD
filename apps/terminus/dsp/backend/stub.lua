@@ -29,7 +29,7 @@
     dsp.preset_save(name) / dsp.preset_load(name)
     dsp.poll(dt)  -> refresh cached state (called once per frame)
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local SLOT_COUNT = 12

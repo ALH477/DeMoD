@@ -6,7 +6,7 @@
   RIFFS are short authored single-note melodies (concert-pitch MIDI), transposed
   into the instrument's range by main. No dm.* — plain data.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local function seq(pitches, step, dur)
 	step = step or 1

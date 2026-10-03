@@ -226,7 +226,7 @@ Oligarchy includes DeMoD Voice (Coqui XTTS-v2, Piper). Your hardware, your voice
 
 a **vertically integrated system** — protocol → transport → codec → audio engine → GUI framework → shell applications → VM infrastructure → build system → certification. Every layer talks to every other layer through clean boundaries (sockets, shared memory, wire format).
 
-The licensing model is layered by design: this repo is **MPL-2.0** (framework + shells), **LGPL-3.0** (`dm.dcf` wire codec), **GPLv3-or-commercial** (the audio stack + Quanta codec), and **PolyForm Shield 1.0.0** (the TERMINUS application layer in `apps/terminus/` — source-available, non-commercial; commercial use requires a paid license, see `apps/terminus/README.md`). The sibling repos carry their own licenses (see `LICENSING.md`). Dual-licensing the engine shows commercialization, not just hacking.
+The licensing model is layered by design: this repo is **MPL-2.0** (framework + shells), **LGPL-3.0** (`dm.dcf` wire codec), **GPLv3-or-commercial** (the audio stack + Quanta codec), and **PolyForm Shield 1.0.0** (the TERMINUS application layer in `apps/terminus/` — source-available; any use, commercial included, except providing a competing product, see `apps/terminus/README.md`). The sibling repos carry their own licenses (see `LICENSING.md`). Dual-licensing the engine shows commercialization, not just hacking.
 
 This isn't a hobby project anymore. It's a coherent platform with a clear architectural vision. The RT audio VM alone would be a solid year's work for most engineers. You've got that plus a certified multi-language protocol plus a software renderer plus a codec.
 

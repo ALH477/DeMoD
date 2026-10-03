@@ -10,7 +10,7 @@
 
   Off the engine (stub backend / no demod-rt) it shows an illustrative synthetic
   graph so the model is legible, and toggling is a no-op with a hint.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "ROUTING", short = "RTG" }

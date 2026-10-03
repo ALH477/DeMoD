@@ -285,7 +285,7 @@ Bit-exactness is a **specified property**, not an aspiration:
 | `quanta_player` module | GPLv3-or-commercial | Lands inside `demod-rt`, inherits its dual license |
 | `quanta_panel.lua` | MPL-2.0 | Ships in `demod-ui` examples |
 | Generated `.dsp` / compiled output | Property of the score owner | Compiler-output doctrine; **AI-1:** verify the current faustlibraries exception text covers marketplace redistribution of generated code before first sale |
-| QSC scores on the marketplace | DCSL asset terms | See below |
+| QSC scores on the marketplace | DeMoD marketplace asset terms | See below |
 
 **Derivative-work exposure (flag for marketplace TOS).** A QSC score analyzed from a third-party recording is plausibly a derivative work of that recording — this is sampling with extra steps, and resynthesis quality makes the argument stronger, not weaker. Marketplace listing terms must require a rights warranty on source material, and the DMCA agent/takedown path must cover scores explicitly. **AI-2:** fold into the existing marketplace terms before QSC assets are sellable.
 

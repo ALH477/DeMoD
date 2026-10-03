@@ -41,7 +41,7 @@
  * src/ipc/demod_control.c and the seqlock read from src/ipc/demod_rt_meters.c.
  *
  * Copyright (C) 2025-2026 DeMoD LLC.
- * Licensed under the GNU Lesser General Public License v3.0 only; see LICENSE.
+ * Licensed under the GNU Lesser General Public License v3.0 only; see LICENSES/LGPL-3.0-only.txt.
  */
 #define _GNU_SOURCE 1   /* usleep, ftruncate, sockaddr fields under -std=c11 */
 #include "hydramesh/demod_frame.h"

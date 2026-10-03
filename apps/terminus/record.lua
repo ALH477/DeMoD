@@ -6,7 +6,7 @@
   dm.exec and reads the recorder's runtime state (pidfile + meta) directly. Shared
   by the DSP Studio RECORD screen and the TERMINUS home REC badge so both see one
   consistent recording state (the recorder runs detached, surviving app switches).
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = {}

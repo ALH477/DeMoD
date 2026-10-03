@@ -3,7 +3,7 @@
   patches/demod-modal/fx.lua — fx descriptor for the DeMoD Modal Perc mallet
   physical model (see demod_modal.dsp). Params 0..6 match declaration order;
   freq/gain/gate are the hidden MIDI-driven voice params.
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

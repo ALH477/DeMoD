@@ -24,8 +24,8 @@ A **pure software-rendered GUI framework** (C11 + SDL2 + Lua, **no GPU** — the
 - **Browser client** — the framework compiles to WASM (`CMakeLists.txt` emscripten path, `web/`).
 - **TERMINUS** — `apps/terminus/`, the flagship application layer: a unified home shell + DSP Studio
   with a full control surface, modulation matrix, and DAW-style mixer/sequencer. **PolyForm Shield
-  1.0.0** (source-available, non-commercial; commercial use requires a paid license — see
-  `apps/terminus/README.md`). Not MPL; do not copy its code into the open framework.
+  1.0.0** (source-available: any use, commercial included, except providing a competing product; no
+  fee — see `apps/terminus/README.md`). Not MPL; do not copy its code into the open framework.
 - **MCP server** — `mcp/demod_mcp_server.py`, exposes build/render/test/engine-control as agent tools.
 
 > **Sibling repos.** ArchibaldOS (RT audio guest OS), Oligarchy (NixOS host + DSP VM management),
@@ -93,13 +93,15 @@ Multi-license by layer (full map in `LICENSING.md`); **every file has an SPDX he
 - **`dm.dcf`** (`src/ipc/dm_dcf.c`, `audio-stack/bridge/`, the vendored HydraMesh headers) — **LGPL-3.0**.
 - **Audio stack** (`audio-stack/` engine + orchestrator + IPC) — **GPLv3-only OR commercial** (the
   DEMOD DUAL LICENSE). The MPL UI talks to it only over socket/shm (separate programs) so the UI stays
-  MPL; a product that *ships* the engine picks GPLv3 (offer source) or the commercial license (see
-  `docs/automotive-compliance.md`).
+  MPL; a product that *ships* the engine picks GPLv3 (open to commercial use; release the
+  corresponding source) or the commercial license ($249 per developer + 3% of hardware device sales
+  revenue, for those who don't want GPLv3's obligations; see `docs/automotive-compliance.md`).
 - **Quanta codec** (`quanta/` analyzer + render + freeze + QSC format) — **GPLv3-only OR commercial**
   (the same DEMOD DUAL LICENSE); its `ui/quanta_panel.lua` is **MPL-2.0**. Standalone program.
-- **TERMINUS** (`apps/terminus/`) — **PolyForm Shield 1.0.0** (source-available, non-commercial).
-  Commercial use requires a paid license + 3% hardware fee; see `apps/terminus/README.md`. Not MPL,
-  not GPL — do not copy TERMINUS code into the open framework or the audio stack.
+- **TERMINUS** (`apps/terminus/`) — **PolyForm Shield 1.0.0** (source-available). Any use,
+  commercial included, except providing a product that competes with TERMINUS or with a product DeMoD
+  provides using it; no fee or revenue share. See `apps/terminus/README.md`. Not MPL — do not copy
+  TERMINUS code into the open framework or the audio stack.
 
 **Reserved trade dress.** The *assembled* DeMoD/TERMINUS look — the oscilloscope-phosphor palette +
 CRT scanlines/vignette/pulse + Sierpinski-glow + 8×16 phosphor type + blade/coverflow shell, **as a

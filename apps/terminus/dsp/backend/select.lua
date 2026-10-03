@@ -9,7 +9,7 @@
     4. fallback                                                -> "stub"
 
   Each backend module exposes new(base) returning the `dsp` contract table.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local function exists(path)

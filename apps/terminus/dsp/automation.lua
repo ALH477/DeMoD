@@ -17,7 +17,7 @@
   ~/.local/share/demod/scripts), the repo's universal config pattern (dofile to read).
   No dm.*; file/sh I/O only.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local M = {}

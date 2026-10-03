@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # demod-remote-bridge — engine-side UDP bridge for the DCF remote transport.
-# Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSE.
+# Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSES/LGPL-3.0-only.txt.
 
 CC     ?= cc
 CFLAGS ?= -Wall -Wextra -O2 -std=c11

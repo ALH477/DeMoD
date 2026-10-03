@@ -11,7 +11,7 @@
   Same focus-field model as the shell; `back` aborts to the title, or exits to
   TERMINUS from the title. Shared helpers come from ../games/gamekit.lua.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"
 local K = dofile(HERE .. "../games/gamekit.lua")

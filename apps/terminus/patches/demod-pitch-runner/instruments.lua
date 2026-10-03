@@ -10,7 +10,7 @@
 
   Tunings are MIDI note numbers, low string first. MIDI 69 = A4 = 440 Hz.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local floor, min, max = math.floor, math.min, math.max
 

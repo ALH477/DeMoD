@@ -15,7 +15,7 @@
     play_stop play / stop (Start button / footswitch / menu — never tab)
     tab       switch screens (always — never trapped);  wet  optional level-flip accelerator
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local SEQDIR = os.getenv("DEMOD_SEQ_DIR") or ((os.getenv("HOME") or ".") .. "/.local/share/demod/patterns")

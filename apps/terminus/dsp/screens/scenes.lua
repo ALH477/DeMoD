@@ -6,7 +6,7 @@
   scene and sweep POSITION (or assign a DRIVER CC) to crossfade the entire rack live —
   each interpolated param writes through the control surface, so morphing also emits MIDI
   out. State lives in ctx.modulation; persisted via ctx.save_bindings.
-  © 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  © 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "SCENES", short = "SCN" }

@@ -14,7 +14,7 @@
       p:panic(dsp, target_slot)                  -- release + all_notes_off (on stop)
 
   Pure: takes the `dsp` contract table (note_on/note_off/all_notes_off) as an arg.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local floor = math.floor

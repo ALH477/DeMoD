@@ -7,7 +7,7 @@
   path inlined `440 * 2^((n-69)/12)`. This is the shared source of truth so they all
   agree. No dm.*; safe to unit-test and to dofile from anywhere.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local M = {}

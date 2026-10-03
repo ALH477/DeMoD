@@ -2,7 +2,7 @@
 --[[ ============================================================================
   dsp/screens/fx_chain.lua — the signal chain: slots, bypass, wet, selection.
   Backend-agnostic: only talks to ctx.dsp.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "FX CHAIN", short = "FX" }

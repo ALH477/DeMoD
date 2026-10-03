@@ -6,7 +6,7 @@
   under `lua`/`busted` for unit tests (see selftest.lua). All pitch is MIDI-note
   based; A4 = MIDI 69 = 440 Hz (the same convention as dsp/midi_modes.lua).
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local floor = math.floor
 

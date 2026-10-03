@@ -16,7 +16,7 @@
   this module is just the storage + math. mute on a serial FX insert is aliased to
   bypass by mixer.lua; solo is restricted to parallel (synth + master) strips.
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = {}

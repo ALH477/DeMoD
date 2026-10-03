@@ -9,7 +9,7 @@
     4. poll() until a telemetry meters table arrives and assert the known values.
   Prints PASS/FAIL and exits nonzero on failure. Driven from on_update across
   frames because the framework runs an event loop.
-  Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSE.
+  Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSES/LGPL-3.0-only.txt.
 ]]
 
 local PORT = tonumber(os.getenv("DEMOD_DCF_PORT") or "47000")

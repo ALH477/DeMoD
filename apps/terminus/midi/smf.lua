@@ -18,7 +18,7 @@
 
       ok, err = M.export(path, pattern, voices)
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local floor = math.floor
 local M = {}

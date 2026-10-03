@@ -19,7 +19,7 @@
  *     *engine* endpoint, sent to the bridge as an {"op":"addpeer",…} text frame.
  *
  * Copyright (C) 2025-2026 DeMoD LLC.
- * Licensed under the GNU Lesser General Public License v3.0 only; see LICENSE.
+ * Licensed under the GNU Lesser General Public License v3.0 only; see LICENSES/LGPL-3.0-only.txt.
  */
 #define _GNU_SOURCE 1   /* getaddrinfo, recv/sendto flags under -std=c11 */
 #include "demod/app.h" /* lua_State + luaL_* (pulls in lua.h/lauxlib.h) */

@@ -1,7 +1,7 @@
 -- SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 --[[ ============================================================================
   dsp/util.lua — shared draw helpers + palette for DSP Studio
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local floor = math.floor

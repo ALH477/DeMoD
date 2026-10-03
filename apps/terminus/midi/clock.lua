@@ -11,7 +11,7 @@
   M.update(dt) once per frame (the same dt patches already get in on_update).
   With source = "internal" the same on_step fires off the local bpm instead.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local M = {}

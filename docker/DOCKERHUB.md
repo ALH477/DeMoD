@@ -132,8 +132,8 @@ compose profile for a full-fidelity near-real-time path.)
 
 The docker glue is **MPL-2.0**. The image *links* (as Nix-built binaries)
 components under:
-- `quanta`, `audio-stack/rt-audio`, `audio-stack/orchestrator` — GPL-3.0-only
-  (dual-licensed DCSL for the quanta codec)
+- `quanta`, `audio-stack/rt-audio`, `audio-stack/orchestrator` — GPL-3.0-only, or a
+  commercial licence from DeMoD LLC (the DEMOD DUAL LICENSE)
 - `audio-stack/bridge`, `web/bridge`, `src/ipc/dm_dcf` — LGPL-3.0-only
 - WASM UI + framework root — MPL-2.0
 

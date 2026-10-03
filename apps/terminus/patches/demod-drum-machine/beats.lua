@@ -19,7 +19,7 @@
   Directory: $DEMOD_BEATS_DIR, else <DEMOD_CONFIG dir>/beats, else
   ~/.config/demod/beats. dm-free (io/os only).
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local B = {}
 local SMF, VOICES -- injected

@@ -8,7 +8,8 @@
 -- Render both audio + video in one shot (run from the repo root so the relative
 -- asset paths resolve):
 --
---   python3 scripts/extract-duck-frames.py   # once: GIF  -> assets/duck-frames/*.png
+--   python3 apps/terminus/patches/gen-duck-anim.py \
+--       --png assets/frames/demod-duck --midi duck-dance.mid   # frames + melody
 --   python3 scripts/render-lofi-audio.py \
 --       --out assets/audio/duck-dance-lofi.wav   # MIDI -> polyphonic Faust WAV
 --   demod-ad render duck-dance.lua            # WAV + scene -> duck-dance.mp4
@@ -58,11 +59,11 @@ local BAND_COLORS = {
 	{ 0xFF, 0x44, 0xAA },
 }
 
--- default duck: the 8-bit shuba dance (frames via scripts/build-duck-videos.py)
-local DUCK_DIR = "assets/frames/8bit-shuba"
-local DUCK_FRAMES = 122
-local DUCK_FPS = 14.9877
-local DUCK_AW, DUCK_AH = 516, 500
+-- default duck: DeMoD's own pixel duck (frames via patches/gen-duck-anim.py --png)
+local DUCK_DIR = "assets/frames/demod-duck"
+local DUCK_FRAMES = 144
+local DUCK_FPS = 16
+local DUCK_AW, DUCK_AH = 768, 768
 
 -- audio snapshot with safe fallbacks when rendered without analysis
 local function sig(audio, t)

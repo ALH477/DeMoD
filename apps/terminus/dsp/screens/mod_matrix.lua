@@ -6,7 +6,7 @@
   signal) and writes through the control surface, so a modulated param also emits MIDI out.
   LFOs tempo-sync to the MIDI clock. State lives in ctx.modulation; persisted via
   ctx.save_bindings. A live value bar shows each source moving in real time.
-  © 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  © 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "MOD MATRIX", short = "MOD" }

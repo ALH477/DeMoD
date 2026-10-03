@@ -6,7 +6,7 @@
   Real audio, no orchestrator. Slots/params are 0-based in the C ABI; we present
   1-based slots to the GUI to match the orchestrator/stub backends.
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local function new(base)

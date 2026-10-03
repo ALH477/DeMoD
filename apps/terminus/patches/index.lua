@@ -18,7 +18,7 @@
   Manifest shape: `return { v = 1, patches = { <entry>, ... } }` (the canonical
   versioned wrapper; a bare list is still accepted for back-compat). See MANIFESTS.md.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

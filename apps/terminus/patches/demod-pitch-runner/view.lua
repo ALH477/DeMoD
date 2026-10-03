@@ -13,7 +13,7 @@
   Drawing only (call inside on_draw). gamekit (K), theory (T) and instruments
   (INST) are injected by main via V.init.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local floor = math.floor
 

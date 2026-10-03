@@ -9,7 +9,7 @@
   the dm.ctl escape hatch, same resolve_fx_path (abs .so path passthrough; stock alias).
   No-ops gracefully (returns false) when dm.ctl is absent (desktop dev / no socket).
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = {}

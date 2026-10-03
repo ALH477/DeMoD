@@ -76,16 +76,44 @@ function M.update(dt, active_notes)
 		notes = active_notes
 	end
 
-	-- Advance frame by timing table
+	-- Advance frame by the timing table, wrapping at the end of the loop
 	if FD and FD.frame_map then
+		local dur = FD.duration or (#FD.frame_map / (FD.fps or 16))
+		if t >= dur then
+			t = t % dur
+			frame_idx = 1
+		end
 		while frame_idx < #FD.frame_map and t >= FD.frame_map[frame_idx + 1] do
 			frame_idx = frame_idx + 1
 		end
-		if frame_idx > #FD.frame_map then
-			frame_idx = 1
-			t = 0 -- loop
-		end
 	end
+end
+
+-- dm.draw.blit is 1:1, so a frame drawn at another size is resampled here
+-- (nearest neighbour) and cached per stored frame and size.
+local scaled = {}
+local function frame_rgba(off, fw, fh, w, h)
+	local key = off .. ":" .. w .. "x" .. h
+	local s = scaled[key]
+	if s then
+		return s
+	end
+	local src = bin:sub(off + 1, off + fw * fh * 4)
+	if w == fw and h == fh then
+		s = src
+	else
+		local out = {}
+		for y = 0, h - 1 do
+			local row = math.floor(y * fh / h) * fw
+			for x = 0, w - 1 do
+				local i = (row + math.floor(x * fw / w)) * 4 + 1
+				out[#out + 1] = src:sub(i, i + 3)
+			end
+		end
+		s = table.concat(out)
+	end
+	scaled[key] = s
+	return s
 end
 
 -- Draw duck sprite + oscilloscope waves
@@ -103,8 +131,7 @@ function M.draw(x, y, w, h, alpha)
 	local frame_w = FD.w
 	local frame_h = FD.h
 	if off + frame_w * frame_h * 4 <= #bin then
-		local rgba = bin:sub(off + 1, off + frame_w * frame_h * 4)
-		dm.draw.blit(x, y, w, h, rgba, alpha)
+		dm.draw.blit(x, y, w, h, frame_rgba(off, frame_w, frame_h, w, h), alpha)
 	end
 
 	-- Draw oscilloscope waves from active notes

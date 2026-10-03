@@ -1,5 +1,5 @@
 declare name "DeMoD Sierpinski FX";
-declare author "DeMoD + Grok";
+declare author "DeMoD LLC";
 declare version "4.0";
 declare description "Argent Metal Edition — Industrial fractal effect with Sierpinski gating";
 
