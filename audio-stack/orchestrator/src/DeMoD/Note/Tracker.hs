@@ -5,7 +5,7 @@ Copyright   : (c) DeMoD LLC, 2025-2026
 License     : GPL-3.0-only
 
 The transition pattern is adapted from DeMoD-Note's Backend.handleNoteChange
-(Copyright 2026, MIT), but emits DeMoD command-ring note messages instead of
+(Copyright 2026 DeMoD LLC, MIT), but emits DeMoD command-ring note messages instead of
 OSC/FluidSynth messages.
 -}
 

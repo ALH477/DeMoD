@@ -4,7 +4,7 @@ Description : Frequency, MIDI-note, and cents helpers for synth tracking
 Copyright   : (c) DeMoD LLC, 2025-2026
 License     : GPL-3.0-only
 
-Portions adapted from DeMoD-Note's Detector module (Copyright 2026, MIT).
+Portions adapted from DeMoD-Note's Detector module (Copyright 2026 DeMoD LLC, MIT).
 MIT is compatible with this repository's GPL-3.0-only license.
 -}
 

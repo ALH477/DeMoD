@@ -1,5 +1,5 @@
 declare name        "AbyssalSynth";
-declare author      "Gemini (DeMoD Reference)";
+declare author      "DeMoD LLC";
 declare description "Lofi underwater synth with OU pitch drift and saturated hydro-reflections";
 declare version     "1.3";
 declare license     "GPL-3.0";

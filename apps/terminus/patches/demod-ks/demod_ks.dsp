@@ -14,7 +14,7 @@
 //  Compile (C++):         faust -lang cpp -o demod_ks.cpp demod_ks.dsp
 //
 //  SPDX-License-Identifier: DCSL
-//  © 2025 DeMoD LLC  —  ALH477
+//  © 2025 DeMoD LLC
 // ─────────────────────────────────────────────────────────────────
 
 declare name        "DeMoD KS String";
