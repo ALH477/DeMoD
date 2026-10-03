@@ -1,0 +1,157 @@
+# Copyright and licence for every file that does not carry a complete SPDX
+# header of its own (REUSE Specification 3.3). `reuse lint` checks the whole
+# tree against this file and LICENSES/; .github/workflows/ci.yml runs it.
+#
+# The layers are the ones LICENSING.md describes. Precedence is "closest"
+# unless a block says otherwise: a file's own header wins, and a file whose
+# header has only a copyright line or only a licence tag takes the missing
+# half from the block that matches it. When several blocks match one file,
+# the LAST one applies, so the catch-all comes first.
+version = 1
+
+# --- The framework: MPL-2.0 (LICENSE) ---------------------------------------
+# Everything not claimed by a later block: src/, include/, examples/, tools/,
+# tests/, the shells (shell/, auto/, dash/, gcs/, rov/), apps/mixer/, web/
+# (the WebAssembly host page), docs, build and editor configuration, CI, the
+# screenshots in assets/ (rendered by this framework's own examples) and
+# flake.lock (written by `nix flake lock` for this flake).
+[[annotations]]
+path = "**"
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "MPL-2.0"
+
+# --- The dual-licensed engines: GPL-3.0-only OR the DeMoD commercial licence -
+# audio-stack/ (audio-stack/LICENSE, audio-stack/orchestrator/LICENSE),
+# quanta/ (quanta/LICENSE) and the DCF-Snake NixOS modules. The commercial
+# option is described in LICENSES/LicenseRef-DeMoD-Commercial.txt.
+[[annotations]]
+path = ["audio-stack/**", "quanta/**", "nixos/modules/snake-*.nix"]
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "GPL-3.0-only OR LicenseRef-DeMoD-Commercial"
+
+# The quanta browser panel is the framework-facing exception (MPL-2.0).
+[[annotations]]
+path = "quanta/ui/quanta_panel.lua"
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "MPL-2.0"
+
+# --- The DCF remote transport: LGPL-3.0-only ------------------------------------
+# audio-stack/bridge/ (except demod-dcf-audiocast.c, whose own header keeps it
+# dual-licensed), web/bridge/ (dcf-ws-bridge, including the Cargo files), the
+# vendored HydraMesh codec headers, and the custos gate. custos.gen.c is
+# compiler output (see web/bridge/custos/PROVENANCE.md) and is never edited,
+# so its notice lives here: Exsecutor's LICENSE.EXCEPTION Exception A covers
+# the compiler's part, Exsecutor's LICENSE.GRANTS the compiled program's.
+# third_party/hydramesh/ is copied byte-identical from github.com/ALH477/HydraMesh
+# (DeMoD LLC); see THIRD_PARTY_LICENSES.md for the stray "GPL-3.0" comment in
+# demod_frame.h, which upstream's own SPDX line contradicts.
+[[annotations]]
+path = ["audio-stack/bridge/**", "web/bridge/**", "third_party/hydramesh/**"]
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "LGPL-3.0-only"
+
+# --- TERMINUS: PolyForm Shield 1.0.0 (apps/terminus/LICENSE) -----------------
+# Patch manifests, READMEs, MIDI and frame data, and the generated Lua frame
+# indexes. The LGPL-3.0-only demod-jam copies and the MIT DeMoD_Vox.dsp carry
+# their own headers, which win over this block.
+#
+# Provenance assumed: patches/duck-anim-frames.bin, patches/demod-duck-dance/
+# duck-anim-frames.bin and their .lua indexes were generated from duck-pixel.gif
+# and duck-dance.mid, which are not in the tree and whose origin is not
+# recorded (THIRD_PARTY_LICENSES.md). If either is someone else's work, these
+# files need that owner's licence and notice, or replacement.
+[[annotations]]
+path = "apps/terminus/**"
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "LicenseRef-PolyForm-Shield-1.0.0"
+
+# Patches whose Faust metadata (`declare license`) names another licence. The
+# declarations shipped with the files and are not withdrawn: each file is
+# available under Shield OR the licence it declares (LICENSING.md, TERMINUS).
+[[annotations]]
+path = [
+  "apps/terminus/patches/demod-genreeq/GenreEQ.dsp",
+  "apps/terminus/patches/demod-iq/DeMoDIQ.dsp",
+  "apps/terminus/patches/demod-iq-gt/DeMoDIQ-GT.dsp",
+  "apps/terminus/patches/demod-argent-sub/ArgentSub.dsp",
+  "apps/terminus/patches/demod-mf-ironwall/01_IronWall.dsp",
+  "apps/terminus/patches/demod-kyoku/KyokuGen.dsp",
+  "apps/terminus/patches/demod-orchestra/OrchestraSynth.dsp",
+  "apps/terminus/patches/demod-cassette-wraith/CassetteWraith.dsp",
+  "apps/terminus/patches/demod-glissande/GlissAnde.dsp",
+  "apps/terminus/patches/demod-argent-metal/ArgentMetal.dsp",
+  "apps/terminus/patches/demod-ironclad/IRONCLAD.dsp",
+  "apps/terminus/patches/demod-abyssal/AbyssalSynth.dsp",
+  "apps/terminus/patches/demod-mf-tempoecho/19_TempoEcho.dsp",
+  "apps/terminus/patches/demod-popbass/PopBass.dsp",
+  "apps/terminus/patches/demod-drum/demod_drum.dsp",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "LicenseRef-PolyForm-Shield-1.0.0 OR GPL-3.0-only"
+
+[[annotations]]
+path = [
+  "apps/terminus/patches/demod-mycelium/mycelium.dsp",
+  "apps/terminus/patches/demod-fuzz/DeMoD_fuzz.dsp",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "LicenseRef-PolyForm-Shield-1.0.0 OR MIT"
+
+# ocarina.dsp declares "DeMoD Commercial Source License / BSD-3 (community)";
+# the community half is BSD-3-Clause.
+[[annotations]]
+path = "apps/terminus/patches/ocarina/ocarina.dsp"
+precedence = "override"
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "LicenseRef-PolyForm-Shield-1.0.0 OR BSD-3-Clause"
+
+# C++ the Faust compiler generated from demod_lofi_keys_mk2.dsp. It inlines
+# Faust-library code: maths.lib and envelopes.lib (GRAME, LGPL with the Faust
+# exception, which lets generated code take the program's own licence) and
+# filters.lib functions by Julius O. Smith III under the MIT-style STK-4.3
+# licence, whose notice the file's metadata keeps.
+[[annotations]]
+path = "apps/terminus/patches/demod-lofi-keys-mk2/.faust_cache/**"
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2025-2026 DeMoD LLC",
+  "GRAME",
+  "2003-2019 Julius O. Smith III <jos@ccrma.stanford.edu>",
+]
+SPDX-License-Identifier = "LicenseRef-PolyForm-Shield-1.0.0 AND MIT"
+
+# --- Third-party: Monocypher (src/crypto/) ------------------------------------
+# The sources carry their own headers; the licence note is annotated here.
+[[annotations]]
+path = "src/crypto/MONOCYPHER-LICENCE.md"
+SPDX-FileCopyrightText = [
+  "2017-2023 Loup Vaillant",
+  "2017-2019 Michael Savage",
+  "2017-2023 Fabio Scotoni",
+]
+SPDX-License-Identifier = "CC0-1.0 OR BSD-2-Clause"
+
+# --- Generated data -------------------------------------------------------------
+# quanta/ui/score.lua is a score sidecar written by quanta-freeze; it is data,
+# not edited by hand.
+[[annotations]]
+path = "quanta/ui/score.lua"
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "GPL-3.0-only OR LicenseRef-DeMoD-Commercial"
+
+# --- Files that quote SPDX lines or third-party notices as text ---------------
+# Licensing docs, the PR template and the notices file show identifiers and
+# third-party copyright lines as examples or records, not as their own notice.
+[[annotations]]
+path = [
+  "LICENSING.md",
+  "THIRD_PARTY_LICENSES.md",
+  "CONTRIBUTING.md",
+  ".github/PULL_REQUEST_TEMPLATE.md",
+  "quanta/LICENSING.md",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2025-2026 DeMoD LLC"
+SPDX-License-Identifier = "MPL-2.0"

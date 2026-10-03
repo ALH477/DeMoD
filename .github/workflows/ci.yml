@@ -64,6 +64,20 @@ jobs:
             done
           '
 
+  # ── Licensing: every file's copyright and licence is declared ─────────
+  # In its own SPDX header or in REUSE.toml, with the text in LICENSES/.
+  reuse:
+    name: reuse lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # A venv: the runner's system Python refuses a plain pip install (PEP 668).
+      - name: reuse lint
+        run: |
+          python3 -m venv "$RUNNER_TEMP/reuse"
+          "$RUNNER_TEMP/reuse/bin/python" -m pip install --quiet reuse==6.2.0
+          "$RUNNER_TEMP/reuse/bin/reuse" lint
+
   # ── Style (advisory: reports, never fails the run) ───────────────────
   lint:
     name: format (advisory)
