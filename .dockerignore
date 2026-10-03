@@ -48,5 +48,5 @@ web/demod-ui.js
 web/demod-ui.wasm
 web/demod-ui.data
 
-# Large vendored objects that aren't used by the dev appliance's build
+# The GNU Unifont source `make font` downloads (not used by the dev appliance's build)
 unifont_all.hex

@@ -7,8 +7,11 @@ examples/demod-ui
 result
 result-*
 
-# generated font blobs (built by `make font`; see tools/genfont.py)
+# generated font blobs (built by `make font`; see tools/genfont.py) and the GNU
+# Unifont source `make font` downloads to build them (OFL-1.1; never committed)
 *.dmf
+unifont_all.hex
+unifont_all.hex.gz
 
 # test binaries
 /tests/test_font_utf8
