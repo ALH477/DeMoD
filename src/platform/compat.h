@@ -25,6 +25,14 @@
 
 typedef SOCKET dm_socket_t;
 #define DM_INVALID_SOCKET INVALID_SOCKET
+
+/* POSIX ssize_t, for dm_dcf.c's sendto/recv length checks. MinGW defines it;
+ * MSVC does not (Winsock's calls return int, which converts cleanly). */
+#if defined(_MSC_VER) && !defined(_SSIZE_T_DEFINED)
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#define _SSIZE_T_DEFINED
+#endif
 #define dm_closesocket    closesocket
 
 /* WSAStartup/WSACleanup, ref-counted so open/close pairs nest safely. */

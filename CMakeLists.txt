@@ -257,5 +257,11 @@ endif()
 if(WIN32)
   target_link_libraries(demod-ui PRIVATE ws2_32)  # Winsock for dm_dcf.c
 endif()
+if(MSVC)
+  # <stdatomic.h> (demod_rt_meters.h, demod_triple_buf.h) needs MSVC's C11
+  # atomics switch on top of /std:c11 (CMAKE_C_STANDARD above); without it
+  # vcruntime_c11_stdatomic.h stops with "C atomic support is not enabled".
+  target_compile_options(demod-ui PRIVATE /experimental:c11atomics)
+endif()
 
 install(TARGETS demod-ui RUNTIME DESTINATION bin)
