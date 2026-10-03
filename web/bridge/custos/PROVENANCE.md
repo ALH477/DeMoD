@@ -23,19 +23,26 @@ both files with the `cc` crate; `src/gate.rs` is the only caller.
 
 ## Licence
 
-`custos.gen.c` is compiler output. Exsecutor's `LICENSE.EXCEPTION`, Exception A,
-lets compiler output be propagated under terms of the recipient's choosing. It
-ships here under this repository's LGPL-3.0-only, alongside `shim.c`. This is
-the same reading `LICENSING.md` already records ("Exception A covers compiler
-OUTPUT").
+`custos.gen.c` is compiler output, and it is based on two works: the compiler
+that emitted it, and the program it was compiled from. It ships here under this
+repository's LGPL-3.0-only, alongside `shim.c`, on two permissions, one for
+each:
+
+- **The compiler's part.** Exsecutor's `LICENSE.EXCEPTION`, Exception A, says
+  compiler output is not a work based on the compiler and may be propagated
+  under terms of the recipient's choosing. That keeps the compiler's licence
+  out of the file. It does not release the file from the licence of the
+  program compiled.
+- **The program's part.** The program is the three source files listed above,
+  which Exsecutor licenses under GPL-3.0-or-later. Exsecutor's root
+  `LICENSE.GRANTS`, in which DeMoD LLC, their copyright holder, additionally
+  licenses those three files, and every earlier version of each, under
+  LGPL-3.0-only, is what lets output compiled from them ship under
+  LGPL-3.0-only. Because it covers every earlier version, it covers the
+  sources at the pinned commit `5569b55`.
 
 No Exsecutor *source* is copied into this directory. The three `.exsc` inputs
-stay upstream under GPL-3.0-or-later. That is why the relicensing grant that
-covers `exsecutor/` (compiler-input source) is not needed here.
-
-To regenerate the file in-tree, or to edit the gate in this repository,
-`custos.exsc` would need the same explicit grant `exsecutor/codex.exsc`
-carries. Only the copyright holder can give that grant.
+stay upstream.
 
 ## Vendored into DeMoD
 

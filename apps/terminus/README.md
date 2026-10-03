@@ -49,30 +49,17 @@ The `patches/` directory includes 46 source-available example Faust effects (boo
 
 ## Licensing
 
-**TERMINUS is source-available under PolyForm Shield 1.0.0.** You can read the code, run it, and learn from it for personal and non-commercial use.
+**TERMINUS is source-available under PolyForm Shield 1.0.0** (`LICENSE`). Shield permits any
+use, **commercial use included**: you can run TERMINUS, change it, build on it and distribute
+it, in products you sell or services you charge for, with no fee and no revenue share. The one
+thing it does not permit is providing a product that **competes** with TERMINUS, or with any
+product DeMoD LLC (or an affiliate) provides using it. `LICENSE` names DeMoD's line of business ("DeMoD TERMINUS
+— guitar/audio device UI shell, DSP studio, and DSP-patch marketplace client"), so that
+restriction keeps covering that line of business even where DeMoD stops offering a particular
+product. Anyone who gets a copy from you must also get the licence terms (or their URL) and the
+`Required Notice:` line in `LICENSE`.
 
-### Commercial Use
-
-**Commercial use requires a paid license.** If you want to use TERMINUS in a commercial product, you need:
-
-1. **Commercial license** — paid license to use TERMINUS in a commercial product
-2. **3% hardware fee** — additional 3% fee on the hardware selling price (on top of the commercial license)
-
-Contact **alh477@proton.me** for commercial licensing information and pricing.
-
-### What Counts as Commercial Use?
-
-- Selling a product that includes TERMINUS
-- Using TERMINUS in a product you sell (hardware or software)
-- Using TERMINUS in a service you charge for
-- Integrating TERMINUS into a commercial product
-
-### What Doesn't Require a Commercial License?
-
-- Personal projects
-- Educational use
-- Open-source projects (non-commercial)
-- Reading the code to learn from it
+For a use Shield does not permit, contact **alh477@proton.me**.
 
 ## Navigation
 
@@ -113,13 +100,14 @@ The framework is a scanline-by-scanline software renderer with **no GPU**. There
 
 ## License
 
-**PolyForm Shield 1.0.0** — source-available, non-commercial. Commercial use requires a paid license + 3% hardware fee.
+**PolyForm Shield 1.0.0** — source-available; any use, commercial included, except providing a
+competing product. No fee or revenue share.
 
 See `LICENSE` for the full text.
 
 ## Contact
 
-For commercial licensing: **alh477@proton.me**
+Licensing questions: **alh477@proton.me**
 
 ## Copyright
 

@@ -11,7 +11,7 @@
   (seeded from fx_descriptors inits) and mirrors them down with set_param.
   Follow-ups (orchestrator side): get_fx_info / load_fx / a per-slot scope ring.
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 -- POSIX shell single-quote (preset dir derives from $DEMOD_PRESET_DIR/$HOME). SECURITY.md F-7.

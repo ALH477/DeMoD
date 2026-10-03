@@ -236,7 +236,9 @@ docs/SPEC.md       full specification
 
 ## Licensing
 
-Analyzer/render/freeze: **GPL-3.0-only OR DeMoD Commercial** (DCSL).
+Analyzer/render/freeze: **GPL-3.0-only OR LicenseRef-DeMoD-Commercial** — the DEMOD DUAL
+LICENSE in `LICENSE`: GPLv3 for anyone who accepts its obligations, commercial use included, or
+a commercial licence from DeMoD LLC for anyone who does not.
 QSC format: open specification. Panel: **MPL-2.0**. Generated `.dsp` output:
 property of the score owner. Full table + marketplace notes: `LICENSING.md`.
 

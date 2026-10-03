@@ -2,7 +2,7 @@
 --[[ ============================================================================
   dsp/screens/settings.lua — backend info, transport/BPM/gain, and presets.
   Presets are backend-driven (dsp.presets / preset_save / preset_load).
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "SETTINGS", short = "SET" }

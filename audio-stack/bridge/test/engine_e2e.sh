@@ -15,7 +15,7 @@
 # Needs a JACK server + RT priv, so it SELF-SKIPS (exit 0) where those are
 # absent — safe to run in CI. On this box JACK comes from the running PipeWire
 # via pw-jack; demod-rt uses RUNPATH so pw-jack's LD_LIBRARY_PATH selects it.
-# Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSE.
+# Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSES/LGPL-3.0-only.txt.
 set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -91,7 +91,8 @@ whole-tree `./dev fmt --all` would be a large diff — keep it scoped to what yo
 - **Quanta codec** (`quanta/` — analyzer + render + freeze + QSC) — **GPLv3-only OR commercial**
   (same DEMOD DUAL LICENSE); the `ui/` panel is **MPL-2.0**. Standalone CLIs; see [`LICENSING.md`](LICENSING.md).
 - **TERMINUS** (`apps/terminus/` — home shell + DSP Studio + patches) — **PolyForm Shield 1.0.0**
-  (source-available, non-commercial); see [`apps/terminus/README.md`](apps/terminus/README.md).
+  (source-available; any use, commercial included, except a competing product); see
+  [`apps/terminus/README.md`](apps/terminus/README.md).
 - Every file carries an SPDX header (CI-relevant; `CONTRIBUTING.md`).
 
 ## The MCP server (drive the repo from an AI agent)

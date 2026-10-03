@@ -1,9 +1,9 @@
 // ============================================================
 //  DEMOD_GATE  —  Hysteresis Noise Gate
-//  DeMoD LLC — Proprietary and Confidential
+//  SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 //  Copyright (c) 2026 DeMoD LLC. All rights reserved.
-//  Unauthorized use, reproduction, or distribution is
-//  strictly prohibited without written permission.
+//  Use, copying and distribution are permitted under
+//  PolyForm Shield 1.0.0; see apps/terminus/LICENSE.
 // ============================================================
 //
 //  What makes this gate distinctive:

@@ -2,7 +2,7 @@
 --[[ ============================================================================
   patches/demod-boost/fx.lua -- fx descriptor for BOOST (see demod_boost.dsp).
   Params match the COMPILED Faust control bus order (tools/sync_params.py).
-  (c) 2026 DeMoD LLC. Private.
+  (c) 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

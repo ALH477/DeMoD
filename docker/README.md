@@ -202,15 +202,16 @@ image *links* (as Nix-built binaries) components under different licenses:
 
 | Component | License | Artifacts |
 |-----------|---------|-----------|
-| `quanta` codec | GPL-3.0-only OR DCSL | `quanta-{analyzer,render,freeze,stream,stream-decode}` |
-| `demod-rt`, orchestrator, **`demod-dcf-audiocast`** | GPL-3.0-only OR DCSL | `demod-rt`, `demod-orchestrator`, `demod-dcf-audiocast` |
+| `quanta` codec | GPL-3.0-only OR LicenseRef-DeMoD-Commercial | `quanta-{analyzer,render,freeze,stream,stream-decode}` |
+| `demod-rt`, orchestrator, **`demod-dcf-audiocast`** | GPL-3.0-only OR LicenseRef-DeMoD-Commercial | `demod-rt`, `demod-orchestrator`, `demod-dcf-audiocast` |
 | `demod-remote-bridge`, `dcf-ws-bridge`, `dm_dcf` | LGPL-3.0-only | the DCF bridges |
 | HydraMesh `dcf-ffmpeg` / `dcf-radio` | GPL/LGPL (ffmpeg) + LGPL | the HLS server |
 | WASM UI, framework root | MPL-2.0 | `web/demod-ui.{js,wasm}` + `index.html` |
 
 `audio-stack/bridge/**` is an LGPL-3.0-only carve-out inside the otherwise-GPLv3
 `audio-stack/` tree, **except** `demod-dcf-audiocast.c`, which links libjack + the
-GPL engine world and carries the GPL-3.0-only OR DCSL header (see `../LICENSING.md`).
+GPL engine world and carries the GPL-3.0-only OR LicenseRef-DeMoD-Commercial header (see
+`../LICENSING.md`).
 
 A *distributed* image must honor these licenses (offer corresponding source); this
 is a **dev image**, intended to be built locally by each contributor.

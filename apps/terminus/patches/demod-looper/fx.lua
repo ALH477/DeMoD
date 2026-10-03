@@ -3,7 +3,7 @@
   patches/demod-looper/fx.lua — fx descriptor for the looper (see looper.dsp).
   DSP Studio reads this (DEMOD_DSP_PATCH) and calls dsp.load_patch(slot, spec);
   the engine dlopens the compiled looper.so. Params 0..5 match looper.dsp.
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

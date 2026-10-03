@@ -13,7 +13,7 @@
 //  Compile (ALSA):        faust2alsa -poly -nvoices 16 demod_ks.dsp
 //  Compile (C++):         faust -lang cpp -o demod_ks.cpp demod_ks.dsp
 //
-//  SPDX-License-Identifier: DCSL
+//  SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 //  © 2025 DeMoD LLC
 // ─────────────────────────────────────────────────────────────────
 

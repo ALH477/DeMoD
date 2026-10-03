@@ -18,7 +18,7 @@
   Reflow: vertical channel strips on a wide panel; horizontal rows on a narrow guitar
   panel (vertical faders are unusable at 320px).
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "MIXER", short = "MIX" }

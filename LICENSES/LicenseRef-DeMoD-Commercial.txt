@@ -1,0 +1,24 @@
+DeMoD Commercial License (SPDX identifier: LicenseRef-DeMoD-Commercial)
+
+Copyright (C) 2025-2026 DeMoD LLC
+
+This identifier names the commercial license that DeMoD LLC sells as the
+alternative to the GNU General Public License version 3 under the DEMOD DUAL
+LICENSE (audio-stack/LICENSE, quanta/LICENSE). A file tagged
+"GPL-3.0-only OR LicenseRef-DeMoD-Commercial" is available to everyone under
+GPL-3.0-only, for any purpose, commercial use included. The commercial license
+is the other option, for anyone who does not want the GPLv3's obligations; it
+is available only to those who buy it from DeMoD LLC.
+
+This file grants no rights by itself. The terms are those set out in Option 2
+of the DEMOD DUAL LICENSE and in the Commercial License DeMoD LLC issues to
+the buyer. In summary:
+
+  - $249 one-time, perpetual, per developer
+  - Unlimited commercial software plugins; software and plugin revenue is
+    not shared
+  - Physical hardware devices: 3% of hardware device sales revenue to DeMoD
+  - What you distribute under it carries no GPLv3 source-disclosure
+    obligation
+
+To buy a Commercial License or ask about its terms: alh477@proton.me

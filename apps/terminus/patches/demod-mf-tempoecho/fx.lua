@@ -4,7 +4,7 @@
   Metal Forge suite.
   Params 0..6 match the widget declaration order in the .dsp.
 
-  (c) 2026 DeMoD LLC. Private.
+  (c) 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

@@ -24,7 +24,7 @@
   DEMOD_DM_MIDI=<rawmidi/fifo> open a controller, DEMOD_DM_IMPORT=<file.mid>
   load a beat on boot. (Framework also auto-opens DEMOD_MIDI.)
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"
 local K = dofile(HERE .. "../games/gamekit.lua")

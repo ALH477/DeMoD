@@ -10,7 +10,7 @@
   All three can be active simultaneously. Uses shared voice allocator with
   least-latency allocation.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local input = dofile((debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") .. "midi_input.lua")

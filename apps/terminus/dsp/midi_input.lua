@@ -12,7 +12,7 @@
   Industry standard approach: route everything through JACK MIDI or ALSA Sequencer.
   For now we provide a clean Lua interface that the framework can drive.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local M = {}

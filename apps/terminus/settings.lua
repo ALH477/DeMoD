@@ -9,7 +9,7 @@
   survives reboot. Hardware-bound knobs are intentionally out of v1; every row
   here is something the Lua shell can actually apply.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local M = {}
 

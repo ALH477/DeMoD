@@ -10,7 +10,7 @@
   When there's no engine / no `dm.exec` (the stub, or a plain dev host), graph()
   returns a small synthetic illustrative graph so the screen is still legible and
   the routing model is understandable, and connect/disconnect become no-ops.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = {}

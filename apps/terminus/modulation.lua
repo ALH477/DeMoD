@@ -18,7 +18,7 @@
       cs_macros       = { ["macro1"] = "Filter:cc:21" }   -- label:driver-source:driver-code
       cs_macro_routes = { ["macro1"] = "slot1.p0=exp/inv/lo0/hi80;slot2.p1=lin" }
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local M = {}

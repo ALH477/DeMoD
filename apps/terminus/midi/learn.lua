@@ -11,7 +11,7 @@
   Bindings are keyed by CC number and match any channel by default (controllers are
   usually single-channel); a per-channel key is supported for stricter setups.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local M = {}

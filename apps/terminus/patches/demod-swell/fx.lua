@@ -2,7 +2,7 @@
 --[[ ============================================================================
   patches/demod-swell/fx.lua -- fx descriptor for SWELL (see demod_swell.dsp).
   Params match the COMPILED Faust control bus order (tools/sync_params.py).
-  (c) 2026 DeMoD LLC. Private.
+  (c) 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

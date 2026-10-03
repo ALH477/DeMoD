@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only OR Commercial
+// SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
 // DCF-Snake shared-memory IPC contract for DeMoD integration
 //
 // This defines the SPSC ring buffer format for bridging demod-rt (Faust DSP engine)

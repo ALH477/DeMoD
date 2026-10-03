@@ -15,7 +15,7 @@
     tv      {x,y,w,h}                  target view panel (keyboard / fretboard)
     foot    {y,h,cy}                   tuner strip / hint line (never clipped)
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local floor, min, max = math.floor, math.min, math.max
 

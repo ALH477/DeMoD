@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only OR Commercial
+# SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
 # Systemd services for DCF-Snake hub node
 #
 # Two services:

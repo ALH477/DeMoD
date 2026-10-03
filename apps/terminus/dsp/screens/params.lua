@@ -2,7 +2,7 @@
 --[[ ============================================================================
   dsp/screens/params.lua — per-slot parameter editor (edits the FX-chain selection).
   Modal: turn to select a param; SELECT to enter adjust mode; turn to change; BACK exits.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "PARAMS", short = "PRM" }

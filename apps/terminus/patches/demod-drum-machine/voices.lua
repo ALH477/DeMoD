@@ -19,7 +19,7 @@
   Rows are ordered low→high like a 808 panel reads top→bottom; the default
   demo pattern is a readable 4-on-the-floor + offbeat hats groove.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local V = {}

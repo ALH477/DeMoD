@@ -14,7 +14,7 @@
   this file is UI + game state only. Shared draw/sound/save helpers come from
   ../games/gamekit.lua.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"
 local C = dofile(HERE .. "chart.lua")

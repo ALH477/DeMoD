@@ -8,7 +8,7 @@
   and every `ctx.bindings.*` call in the BINDINGS / PARAMS screens working unchanged —
   control_surface.lua is a strict superset of the old API.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"

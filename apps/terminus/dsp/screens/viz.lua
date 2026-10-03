@@ -8,7 +8,7 @@
   alive and reactive — clearly marked "PITCH" so it isn't mistaken for the real
   signal. SPECTRUM is a real radix-2 FFT (was a fake |sample| bar chart). METERS
   is a proper tuner (note + cents) plus transport / CPU / active-FX.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local floor = math.floor

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only OR Commercial
+# SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-DeMoD-Commercial
 # Network and CPU isolation configuration for DCF-Snake spoke node
 #
 # Configures:

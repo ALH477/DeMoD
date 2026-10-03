@@ -16,7 +16,7 @@
   <patch>/../../dsp, with $DEMOD_UI_ROOT as a fallback. Everything is pcall'd so
   a missing/broken backend degrades to note/silent rather than crashing the UI.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local floor = math.floor
 

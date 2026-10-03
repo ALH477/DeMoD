@@ -11,7 +11,7 @@
   notes are routed to the LoFi Keys MkII synth over the dsp/midi_input JACK
   bridge; with no synth running it is a graceful visual-only loop.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local floor, sin, min, max = math.floor, math.sin, math.min, math.max

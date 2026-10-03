@@ -23,7 +23,7 @@
                      "program"|"clock"|"start"|"stop"|"continue",
       note=, vel=0..1, vel127=, cc=, value=0..127, valuef=0..1, a=d1, b=d2 }
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"

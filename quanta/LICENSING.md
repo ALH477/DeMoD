@@ -2,11 +2,16 @@
 
 | component | license | rationale |
 |---|---|---|
-| quanta-analyzer, quanta-render, quanta-freeze | GPL-3.0-only OR LicenseRef-DeMoD-Commercial (DCSL) | dual-license funnel, matches HydraMesh posture |
+| quanta-analyzer, quanta-render, quanta-freeze | GPL-3.0-only OR LicenseRef-DeMoD-Commercial | dual-license funnel, matches HydraMesh posture |
 | include/qsc.h + QSC wire format | open specification; header dual-licensed as above | interop without lock-in |
 | ui/quanta_panel.lua | MPL-2.0 | matches demod-ui framework |
 | generated frozen .dsp | property of the score owner | codegen output is data, not derivative of the generator |
-| arch/, tools/, test/ | GPL-3.0-only OR DCSL | build/verification tooling |
+| arch/, tools/, test/ | GPL-3.0-only OR LicenseRef-DeMoD-Commercial | build/verification tooling |
+
+`GPL-3.0-only OR LicenseRef-DeMoD-Commercial` is the DEMOD DUAL LICENSE in `LICENSE`: GPLv3
+for anyone who accepts its obligations, commercial use included, or a commercial licence from
+DeMoD LLC ($249 one-time per developer, plus 3% of hardware device sales revenue) for anyone
+who does not.
 
 ## Notes
 

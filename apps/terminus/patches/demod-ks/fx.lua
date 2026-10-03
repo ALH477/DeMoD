@@ -3,7 +3,7 @@
   patches/demod-ks/fx.lua — fx descriptor for the DeMoD KS String plucked
   physical model (see demod_ks.dsp). Params 0..7 match declaration order;
   freq/gain/gate are the hidden MIDI-driven voice params.
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

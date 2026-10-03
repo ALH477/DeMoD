@@ -8,7 +8,7 @@
  *   2. Listens on the control socket ($DEMOD_CONTROL_SOCK) and appends every
  *      received line to a log file (argv[1] or $DEMOD_STUB_LOG).
  *
- * Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSE.
+ * Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSES/LGPL-3.0-only.txt.
  */
 #define _GNU_SOURCE 1   /* ftruncate under -std=c11 */
 #include "demod_rt_meters.h"

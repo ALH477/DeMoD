@@ -15,7 +15,7 @@
 # Prints PASS and exits 0 only if a real DeModFrame PING round-trips to a PONG
 # and live meter telemetry flows back — all over the WebSocket relay.
 # The pure-UDP path is audio-stack/bridge/test/loopback.sh.
-# Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSE.
+# Copyright (C) 2025-2026 DeMoD LLC. LGPL-3.0-only; see LICENSES/LGPL-3.0-only.txt.
 set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

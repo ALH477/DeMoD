@@ -1,7 +1,7 @@
 -- SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 --[[ ============================================================================
   patches/demod-cab/fx.lua — fx descriptor for the cabinet voicing (see cab.dsp).
-  Params 0..2 match cab.dsp. © 2026 DeMoD LLC. Private.
+  Params 0..2 match cab.dsp. © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."
 

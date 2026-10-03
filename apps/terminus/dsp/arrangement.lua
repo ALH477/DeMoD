@@ -18,7 +18,7 @@
                    swap for the engine player node — ENGINE_CONTRACTS §2d — when it lands).
 
   Pure / dm-free (file + shell I/O only for persistence). Busted-tested with fake deps.
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local floor = math.floor

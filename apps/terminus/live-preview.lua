@@ -26,7 +26,7 @@
   - The target calling dm.quit() (back-exit) quits the process: that IS the
     harness exit.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 
 local COL = {

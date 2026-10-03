@@ -16,7 +16,7 @@
        DEMOD_SAMPLER_MIDI=<dev> open a controller (framework also auto-opens
        DEMOD_MIDI), DEMOD_SAMPLER_SCREEN=library, DEMOD_SAMPLER_FOCUS=bar.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"
 local K = dofile(HERE .. "../games/gamekit.lua")

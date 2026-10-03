@@ -14,7 +14,7 @@
   visual-only mode (works headless and on any host). All theory lives in the
   pure, testable theory.lua — this file is UI only.
 
-  © 2026 DeMoD LLC. Private.
+  © 2026 DeMoD LLC.
 ============================================================================ ]]
 local HERE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*/)") or "./"
 local T = dofile(HERE .. "theory.lua")

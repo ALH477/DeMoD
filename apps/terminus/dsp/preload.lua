@@ -10,7 +10,7 @@
   layout. The launcher then exports DEMOD_DSP_CHAIN_LOADED=1 so DSP Studio skips its
   own startup load and avoids reloading the chain.
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local BASE = (debug.getinfo(1, "S").source:gsub("^@", "")):match("(.*)/[^/]*$") or "."

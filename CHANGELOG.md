@@ -30,8 +30,8 @@ versioning while pre-1.0.
 - **TERMINUS application layer** (`apps/terminus/`, PolyForm Shield 1.0.0): a unified home shell
   + DSP Studio with a full control surface, modulation matrix, and DAW-style mixer/sequencer.
   Includes 46 example Faust effect patches and mini-game patches. Run with `./dev run terminus` or
-  `nix run .#terminus`. Source-available, non-commercial; commercial use requires a paid license —
-  see `apps/terminus/README.md`.
+  `nix run .#terminus`. Source-available: any use, commercial included, except providing a
+  competing product — see `apps/terminus/README.md`.
 - **AR passthrough HUD** (opt-in, `make ARHUD=1`): composite the flat UI over a live
   camera/video feed as a background layer, turning any Lua app into an instrument
   overlay. New `dm.ar` binding (`open`/`config`/`status`/`close`) reads out-of-process

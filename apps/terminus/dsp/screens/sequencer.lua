@@ -20,7 +20,7 @@
   Note: playback runs while this screen is focused (transport is screen-local in v1);
   global-transport-synced playback pairs with the engine player node (a later phase).
 
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local NAMES = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" }

@@ -7,7 +7,7 @@
   free slot), each running patch (toggle ON/BYP or UNLOAD via a tiny menu), and an
   UNLOAD-ALL row. Backend-agnostic — only talks to ctx.dsp + the ctx.* patch helpers
   defined in dsp_studio.lua (load_patch_entry / free_slot / unload_all_patches).
-  Copyright (c) 2026 DeMoD LLC. All rights reserved. Private — not for public distribution.
+  Copyright (c) 2026 DeMoD LLC. All rights reserved.
 ============================================================================ ]]
 
 local M = { name = "PATCHES", short = "PCH" }
