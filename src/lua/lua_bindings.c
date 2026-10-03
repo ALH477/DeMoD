@@ -1206,6 +1206,13 @@ static int l_control(lua_State *L) {
     return 1;
 }
 
+/* The string at idx, or "" when it is absent. Spelled out rather than GNU's
+   `x ?: ""`, which MSVC rejects. */
+static const char *tostring_or_empty(lua_State *L, int idx) {
+    const char *s = lua_tostring(L, idx);
+    return s ? s : "";
+}
+
 /* dm.viz_add_item(viz_widget, {type=..., ...}) */
 static int l_viz_add_item(lua_State *L) {
     DmWidget *w = check_widget(L, 1);
@@ -1216,17 +1223,17 @@ static int l_viz_add_item(lua_State *L) {
         lua_getfield(L,2,"type"); const char *t = lua_tostring(L,-1); lua_pop(L,1);
         it.type = (t && strcmp(t,"card")==0) ? DM_VIZ_CARD : DM_VIZ_NODE;
 
-        lua_getfield(L,2,"id");     strncpy(it.id, lua_tostring(L,-1) ? : "", 31); lua_pop(L,1);
-        lua_getfield(L,2,"label");  strncpy(it.label, lua_tostring(L,-1) ? : "", 63); lua_pop(L,1);
+        lua_getfield(L,2,"id");     strncpy(it.id, tostring_or_empty(L,-1), 31); lua_pop(L,1);
+        lua_getfield(L,2,"label");  strncpy(it.label, tostring_or_empty(L,-1), 63); lua_pop(L,1);
         lua_getfield(L,2,"layer");  it.layer = lua_tointeger(L,-1); lua_pop(L,1);
-        lua_getfield(L,2,"status"); strncpy(it.status, lua_tostring(L,-1) ? : "", 15); lua_pop(L,1);
+        lua_getfield(L,2,"status"); strncpy(it.status, tostring_or_empty(L,-1), 15); lua_pop(L,1);
 
         if (it.type == DM_VIZ_NODE) {
             lua_getfield(L,2,"x"); it.x = lua_tointeger(L,-1); lua_pop(L,1);
             lua_getfield(L,2,"y"); it.y = lua_tointeger(L,-1); lua_pop(L,1);
             lua_getfield(L,2,"depth"); it.depth = lua_tointeger(L,-1); lua_pop(L,1);
         } else {
-            lua_getfield(L,2,"subtitle"); strncpy(it.subtitle, lua_tostring(L,-1) ? : "", 63); lua_pop(L,1);
+            lua_getfield(L,2,"subtitle"); strncpy(it.subtitle, tostring_or_empty(L,-1), 63); lua_pop(L,1);
         }
     }
     dm_viz_add_item(w, &it);
@@ -1240,10 +1247,10 @@ static int l_control_add_item(lua_State *L) {
 
     DmVizItem it = {0};
     if (lua_istable(L, 2)) {
-        lua_getfield(L,2,"id");     strncpy(it.id, lua_tostring(L,-1) ? : "", 31); lua_pop(L,1);
-        lua_getfield(L,2,"label");  strncpy(it.label, lua_tostring(L,-1) ? : "", 63); lua_pop(L,1);
-        lua_getfield(L,2,"subtitle"); strncpy(it.subtitle, lua_tostring(L,-1) ? : "", 63); lua_pop(L,1);
-        lua_getfield(L,2,"status"); strncpy(it.status, lua_tostring(L,-1) ? : "", 15); lua_pop(L,1);
+        lua_getfield(L,2,"id");     strncpy(it.id, tostring_or_empty(L,-1), 31); lua_pop(L,1);
+        lua_getfield(L,2,"label");  strncpy(it.label, tostring_or_empty(L,-1), 63); lua_pop(L,1);
+        lua_getfield(L,2,"subtitle"); strncpy(it.subtitle, tostring_or_empty(L,-1), 63); lua_pop(L,1);
+        lua_getfield(L,2,"status"); strncpy(it.status, tostring_or_empty(L,-1), 15); lua_pop(L,1);
         lua_getfield(L,2,"layer");  it.layer = lua_tointeger(L,-1); lua_pop(L,1);
         it.type = DM_VIZ_CARD;
     }
