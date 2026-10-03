@@ -360,13 +360,18 @@ demod-ui/                 # the framework — MPL-2.0
 
 ## Contributing
 
-Pull requests welcome. We use the Developer Certificate of Origin, so sign off your commits:
+DeMoD LLC holds the copyright in this project. Outside contributions will require a
+contributor licence agreement with DeMoD LLC, which is being prepared; until it is published,
+pull requests from outside contributors are not merged.
+
+Commits are signed off under the Developer Certificate of Origin:
 
 ```bash
 git commit -s
 ```
 
-By contributing you agree your work ships under the project license (MPL-2.0, inbound equals outbound). No CLA, no copyright assignment. Keep the SPDX header on new source files, and do not relicense vendored code. See `CONTRIBUTING.md`.
+Keep the SPDX header on new source files, and do not relicense vendored code. See
+`CONTRIBUTING.md`.
 
 ## License
 

@@ -23,7 +23,8 @@ who does not.
   instruments require the DeMoD marketplace TOS rights warranty + DMCA
   designated-agent coverage. This tool does not change that exposure; it
   makes it legible.
-- Contributions: inbound=outbound under GPL-3.0-only; commercial-side grants
-  via DCSL CLA.
+- Contributions: DeMoD LLC holds the copyright; outside contributions will
+  require a contributor licence agreement with DeMoD LLC, which is being
+  prepared. See the repository's `CONTRIBUTING.md`.
 
 © 2026 DeMoD LLC

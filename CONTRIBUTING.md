@@ -2,11 +2,11 @@
 
 Thanks for hacking on the framework. It's meant to be built on and improved.
 
-## License of contributions (inbound = outbound)
+## Copyright and the contributor licence agreement
 
-By submitting a contribution you agree it is licensed under the **Mozilla Public
-License, v. 2.0** — the same license as the project. No copyright assignment and no CLA;
-you keep your copyright. We just need the right to ship your change under the MPL.
+DeMoD LLC holds the copyright in this project. Outside contributions will require a
+**contributor licence agreement (CLA) with DeMoD LLC**, which is being prepared. Until it
+is published, pull requests from outside contributors are not merged.
 
 ## Developer Certificate of Origin (DCO)
 
@@ -23,9 +23,10 @@ won't be merged.
 ## Practicalities
 
 - Keep the SPDX header on new source files. Use the correct license for the directory:
-  `MPL-2.0` for the framework/shells, `GPL-3.0-only` under `audio-stack/` or `quanta/`,
-  `LGPL-3.0-only` for DCF glue (`src/ipc/dm_dcf.c`), or `LicenseRef-PolyForm-Shield-1.0.0`
-  under `apps/terminus/`.
+  `MPL-2.0` for the framework/shells, `GPL-3.0-only` or
+  `GPL-3.0-only OR LicenseRef-DeMoD-Commercial` under `audio-stack/` or `quanta/`,
+  `LGPL-3.0-only` for DCF glue (`src/ipc/dm_dcf.c`, `audio-stack/bridge/`), or
+  `LicenseRef-PolyForm-Shield-1.0.0` under `apps/terminus/`.
 - New third-party code must be MPL-2.0-compatible; record it in
   `THIRD_PARTY_LICENSES.md`. Don't relicense vendored code (e.g. monocypher).
 - The framework is a pure software renderer — no GPU/OpenGL/Vulkan. Drawing is
@@ -34,13 +35,12 @@ won't be merged.
   [`DEVELOPING.md`](DEVELOPING.md) for the dev loop (`./dev run|shot|test|fmt`). `./dev fmt` (stylua +
   clang-format) is appreciated but advisory.
 
-## License of contributions by layer
+## Licences by layer
 
-Contributions are inbound = outbound per layer: most of this repo is **MPL-2.0**, but
-`audio-stack/` and `quanta/` are **GPLv3-only OR commercial**, `dm.dcf` glue is **LGPL-3.0**,
-and `apps/terminus/` is **PolyForm Shield 1.0.0**. When contributing to a non-MPL directory,
-your change is licensed under that directory's license, not MPL. See `LICENSING.md` for the
-full map.
+Most of this repo is **MPL-2.0**, but `audio-stack/` and `quanta/` are **GPLv3-only OR
+commercial**, `dm.dcf` glue is **LGPL-3.0**, and `apps/terminus/` is **PolyForm Shield
+1.0.0**. A change to a file is distributed under that file's licence, not necessarily MPL.
+See `LICENSING.md` for the full map.
 
 ## Scope
 

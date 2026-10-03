@@ -153,6 +153,11 @@ Unifont glyph data (OFL-1.1, fetched by `make font`, not committed), and the Hyd
 codec headers (LGPL-3.0-only, vendored in `third_party/hydramesh/`). The DeMoD/TERMINUS marks
 and trade dress are reserved — see `TRADEMARK.md`.
 
+## Contributions
+
+DeMoD LLC holds the copyright in the project. Outside contributions will require a contributor
+licence agreement with DeMoD LLC, which is being prepared; see `CONTRIBUTING.md`.
+
 ## SPDX summary
 
 | Path | SPDX |
